@@ -1,0 +1,6 @@
+{
+  "name": "BarkTalk",
+  "description": "Translate your dog's barks and vocalizations into English with AI, explore pet profiles, history logs, and two-way canine soundboard communication.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">BarkTalk</string>
+    <string name="widget_name">BarkTalk Dog Mood &amp; Translator</string>
+    <string name="widget_description">Displays your dog\'s real-time mood and latest translated message right on your home screen.</string>
+</resources>
