@@ -27,7 +27,8 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
 
     private val database = AppDatabase.getDatabase(application)
     private val petDao = database.petProfileDao()
-    private val logDao = database.translationLogDao()
+    private val translationDao = database.translationDao()
+    val translationRepository = com.example.data.TranslationRepository(translationDao)
 
     private val audioProcessor = AudioProcessor()
     private val soundboardPlayer = CanineSoundboardPlayer()
@@ -43,7 +44,7 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
     val selectedPet: StateFlow<PetProfile?> = petDao.getSelectedProfile()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val translationLogs: StateFlow<List<TranslationLog>> = logDao.getAllLogs()
+    val translationLogs: StateFlow<List<TranslationLog>> = translationRepository.allTranslations
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val isListening: StateFlow<Boolean> = audioProcessor.isRecording
@@ -150,7 +151,7 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
                     isFavorite = false,
                     audioFilePath = audioFilePath
                 )
-                val logId = logDao.insertLog(newLog)
+                val logId = translationRepository.insertTranslation(newLog)
                 com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(getApplication())
 
                 // Trigger push notification if HIGH or CRITICAL
@@ -195,20 +196,20 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
 
     fun toggleFavorite(log: TranslationLog) {
         viewModelScope.launch {
-            logDao.setFavorite(log.id, !log.isFavorite)
+            translationRepository.setFavorite(log.id, !log.isFavorite)
         }
     }
 
     fun deleteLog(log: TranslationLog) {
         viewModelScope.launch {
-            logDao.deleteLog(log)
+            translationRepository.deleteTranslation(log)
             com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(getApplication())
         }
     }
 
     fun clearAllLogs() {
         viewModelScope.launch {
-            logDao.clearAllLogs()
+            translationRepository.clearHistory()
             com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(getApplication())
         }
     }

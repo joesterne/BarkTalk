@@ -48,6 +48,31 @@ class ExampleUnitTest {
     }
 
     @Test
+    fun testSoundboardItems_emotionMappings() {
+        val items = CanineSoundboardPlayer.SOUNDBOARD_ITEMS
+        val happyItems = items.filter { it.emotion == "Happy" }
+        val playfulItems = items.filter { it.emotion == "Playful" }
+        val warningItems = items.filter { it.emotion == "Warning" }
+
+        assertTrue("Happy emotion barks must exist", happyItems.isNotEmpty())
+        assertTrue("Playful emotion barks must exist", playfulItems.isNotEmpty())
+        assertTrue("Warning emotion barks must exist", warningItems.isNotEmpty())
+
+        val guardBark = items.find { it.id == "warning_guard" }
+        assertNotNull(guardBark)
+        assertEquals("Warning", guardBark?.emotion)
+        assertEquals(220, guardBark?.dominantPitchHz)
+
+        val playBark = items.find { it.id == "playful_bow" }
+        assertNotNull(playBark)
+        assertEquals("Playful", playBark?.emotion)
+
+        val happyBark = items.find { it.id == "happy_greeting" }
+        assertNotNull(happyBark)
+        assertEquals("Happy", happyBark?.emotion)
+    }
+
+    @Test
     fun testWidgetMoodCalculation_alert() {
         val log = com.example.data.TranslationLog(
             petId = 1,
@@ -132,5 +157,35 @@ class ExampleUnitTest {
         assertEquals("High Whine & Whimper", analysis.vocalizationType)
         assertTrue(analysis.pitchHz in 650..780)
     }
+
+    @Test
+    fun testTranslationLogEntity_requiredFields() {
+        val now = System.currentTimeMillis()
+        val translation = com.example.data.TranslationLog(
+            petId = 1L,
+            petName = "Barnaby",
+            petBreed = "Golden Retriever",
+            timestamp = now,
+            vocalizationType = "Staccato Alert Bark",
+            dominantPitchHz = 520,
+            intensityDb = 78,
+            cadenceDescription = "2 sharp bursts",
+            englishTranslation = "Delivery driver at front door!",
+            dogThought = "Package arrival detected. Alert sequence activated.",
+            detectedEmotion = "Alert & Protective",
+            urgencyLevel = "HIGH",
+            confidencePercent = 95,
+            recommendedAction = "Check front door",
+            canineSubtext = "High pitch alert"
+        )
+
+        assertEquals(now, translation.timestamp)
+        assertEquals(78, translation.intensityDb)
+        assertEquals("Delivery driver at front door!", translation.englishTranslation)
+        assertEquals("Barnaby", translation.petName)
+        assertEquals("HIGH", translation.urgencyLevel)
+        assertEquals(false, translation.isFavorite)
+    }
 }
+
 

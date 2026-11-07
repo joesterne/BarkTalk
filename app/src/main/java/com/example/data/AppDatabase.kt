@@ -43,37 +43,11 @@ interface PetProfileDao {
     suspend fun selectProfile(id: Long)
 }
 
-@Dao
-interface TranslationLogDao {
-    @Query("SELECT * FROM translation_logs ORDER BY timestamp DESC")
-    fun getAllLogs(): Flow<List<TranslationLog>>
-
-    @Query("SELECT * FROM translation_logs WHERE petId = :petId ORDER BY timestamp DESC")
-    fun getLogsForPet(petId: Long): Flow<List<TranslationLog>>
-
-    @Query("SELECT * FROM translation_logs WHERE isFavorite = 1 ORDER BY timestamp DESC")
-    fun getFavoriteLogs(): Flow<List<TranslationLog>>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertLog(log: TranslationLog): Long
-
-    @Update
-    suspend fun updateLog(log: TranslationLog)
-
-    @Delete
-    suspend fun deleteLog(log: TranslationLog)
-
-    @Query("UPDATE translation_logs SET isFavorite = :isFavorite WHERE id = :id")
-    suspend fun setFavorite(id: Long, isFavorite: Boolean)
-
-    @Query("DELETE FROM translation_logs")
-    suspend fun clearAllLogs()
-}
-
 @Database(entities = [PetProfile::class, TranslationLog::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun petProfileDao(): PetProfileDao
-    abstract fun translationLogDao(): TranslationLogDao
+    abstract fun translationDao(): TranslationDao
+    fun translationLogDao(): TranslationDao = translationDao()
 
     companion object {
         @Volatile
