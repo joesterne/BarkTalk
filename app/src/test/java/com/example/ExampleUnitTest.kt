@@ -186,6 +186,92 @@ class ExampleUnitTest {
         assertEquals("HIGH", translation.urgencyLevel)
         assertEquals(false, translation.isFavorite)
     }
+
+    @Test
+    fun testSocialShareSnippet_conciseFormat() {
+        val translation = com.example.data.TranslationLog(
+            petId = 1L,
+            petName = "Luna",
+            petBreed = "French Bulldog",
+            vocalizationType = "High Yip",
+            dominantPitchHz = 680,
+            intensityDb = 72,
+            cadenceDescription = "Short bounce",
+            englishTranslation = "Treat cupboard is opening!",
+            dogThought = "I demand snacks.",
+            detectedEmotion = "Pure Joy",
+            urgencyLevel = "LOW",
+            confidencePercent = 98,
+            recommendedAction = "Give treat",
+            canineSubtext = "Friendly solicitation"
+        )
+
+        val snippet = com.example.util.SocialShareHelper.buildShareSnippet(
+            translation,
+            com.example.util.ShareFormat.CONCISE
+        )
+
+        assertTrue(snippet.contains("Luna (French Bulldog)"))
+        assertTrue(snippet.contains("Treat cupboard is opening!"))
+        assertTrue(snippet.contains("I demand snacks."))
+        assertTrue(snippet.contains("BarkTalk"))
+    }
+
+    @Test
+    fun testSocialShareSnippet_detailedAndStoryFormats() {
+        val translation = com.example.data.TranslationLog(
+            petId = 1L,
+            petName = "Zeus",
+            petBreed = "German Shepherd",
+            vocalizationType = "Low Growl Bark",
+            dominantPitchHz = 220,
+            intensityDb = 84,
+            cadenceDescription = "Deep resonant bursts",
+            englishTranslation = "Perimeter intruder alert!",
+            dogThought = "Boundary defended.",
+            detectedEmotion = "Guard Vigilance",
+            urgencyLevel = "HIGH",
+            confidencePercent = 94,
+            recommendedAction = "Check fence line",
+            canineSubtext = "Territorial defense"
+        )
+
+        val detailedSnippet = com.example.util.SocialShareHelper.buildShareSnippet(
+            translation,
+            com.example.util.ShareFormat.DETAILED
+        )
+        assertTrue(detailedSnippet.contains("220 Hz"))
+        assertTrue(detailedSnippet.contains("84 dB"))
+        assertTrue(detailedSnippet.contains("Perimeter intruder alert!"))
+
+        val storySnippet = com.example.util.SocialShareHelper.buildShareSnippet(
+            translation,
+            com.example.util.ShareFormat.STORY_POST
+        )
+        assertTrue(storySnippet.contains("DISPATCH FROM MY DOG'S BRAIN"))
+        assertTrue(storySnippet.contains("Zeus"))
+    }
+
+    @Test
+    fun testPetProfileDataClass_requiredFields() {
+        val pet = com.example.data.PetProfile(
+            name = "Barnaby",
+            breed = "Golden Retriever",
+            age = 4,
+            photoUri = "file:///data/user/0/com.aistudio.barktalk/files/pet_photos/pet_123.jpg",
+            avatarEmoji = "🦮",
+            personality = "Gentle Goofball"
+        )
+
+        assertEquals("Barnaby", pet.name)
+        assertEquals("Golden Retriever", pet.breed)
+        assertEquals(4, pet.age)
+        assertEquals(4, pet.ageYears)
+        assertEquals("file:///data/user/0/com.aistudio.barktalk/files/pet_photos/pet_123.jpg", pet.photoUri)
+        assertEquals("🦮", pet.avatarEmoji)
+    }
 }
+
+
 
 

@@ -91,30 +91,6 @@ class NotificationHelper(private val context: Context) {
     }
 }
 
-object SocialShareHelper {
-    fun shareTranslation(context: Context, log: TranslationLog) {
-        val shareMessage = buildString {
-            appendLine("🐾 BarkTalk Dog Translation 🐾")
-            appendLine("🐶 ${log.petName} (${log.petBreed}) says:")
-            appendLine("🗣️ \"${log.englishTranslation}\"")
-            appendLine()
-            appendLine("💭 Dog Thought: ${log.dogThought}")
-            appendLine("❤️ Detected Emotion: ${log.detectedEmotion}")
-            appendLine("📊 Acoustics: ${log.dominantPitchHz} Hz • ${log.vocalizationType} (${log.intensityDb} dB)")
-            appendLine("💡 Owner Tip: ${log.recommendedAction}")
-            appendLine()
-            appendLine("#BarkTalk #DogTranslator #CanineAI #DogLovers")
-        }
-
-        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            putExtra(Intent.EXTRA_TEXT, shareMessage)
-            type = "text/plain"
-        }
-        val chooserIntent = Intent.createChooser(sendIntent, "Share ${log.petName}'s Translation via...")
-        chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(chooserIntent)
-    }
-}
 
 class CanineTtsPlayer(private val context: Context) : TextToSpeech.OnInitListener {
     private val TAG = "CanineTtsPlayer"

@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.TranslationLog
 import com.example.ui.BarkTalkViewModel
+import com.example.ui.components.ShareTranslationDialog
 import com.example.util.SocialShareHelper
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -65,6 +66,7 @@ fun HistoryScreen(
     val allLogs by viewModel.translationLogs.collectAsState()
     var filterMode by remember { mutableStateOf("All") } // "All", "Favorites", "Urgent"
     var showClearDialog by remember { mutableStateOf(false) }
+    var shareDialogLog by remember { mutableStateOf<TranslationLog?>(null) }
 
     val filteredLogs = remember(allLogs, filterMode) {
         when (filterMode) {
@@ -186,7 +188,7 @@ fun HistoryScreen(
                         onPlayBark = { path -> viewModel.playRecordedBark(path) },
                         onStopBark = { viewModel.stopPlayingRecordedBark() },
                         onSpeak = { viewModel.speakTranslation(log.englishTranslation) },
-                        onShare = { SocialShareHelper.shareTranslation(context, log) },
+                        onShare = { shareDialogLog = log },
                         onToggleFavorite = { viewModel.toggleFavorite(log) },
                         onDelete = { viewModel.deleteLog(log) }
                     )
@@ -215,6 +217,13 @@ fun HistoryScreen(
                     Text("Cancel")
                 }
             }
+        )
+    }
+
+    shareDialogLog?.let { logToShare ->
+        ShareTranslationDialog(
+            log = logToShare,
+            onDismissRequest = { shareDialogLog = null }
         )
     }
 }

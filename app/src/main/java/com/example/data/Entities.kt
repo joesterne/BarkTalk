@@ -5,6 +5,7 @@ import androidx.room.PrimaryKey
 
 /**
  * Room Database Entity to store pet profiles.
+ * Includes the dog's name, breed, age, and photo for local Room database persistence.
  */
 @Entity(tableName = "pet_profiles")
 data class PetProfile(
@@ -12,8 +13,10 @@ data class PetProfile(
     val id: Long = 0,
     val name: String,
     val breed: String,
-    val ageYears: Int,
-    val ageMonths: Int,
+    val age: Int = 3, // Dog's age in years
+    val ageYears: Int = age,
+    val ageMonths: Int = 0,
+    val photoUri: String? = null, // Path or URI to dog's photo
     val avatarEmoji: String = "🐶",
     val personality: String = "Gentle Goofball", // Excited, Loyal Guardian, Gentle Goofball, Dramatic Diva, Foodie, Anxious Sweetheart
     val pitchProfile: String = "Standard Bark", // High Yip, Standard Bark, Deep Woof

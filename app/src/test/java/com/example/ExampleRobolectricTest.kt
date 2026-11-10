@@ -14,7 +14,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [36])
 class ExampleRobolectricTest {
 
   @Test
@@ -58,4 +58,31 @@ class ExampleRobolectricTest {
     assertEquals("I hear sirens far away! Singing along!", retrievedLog?.englishTranslation)
     assertEquals(1700000000000L, retrievedLog?.timestamp)
   }
+
+  @Test
+  fun `insert and retrieve pet profile with photo from Room database`() = runBlocking {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val database = AppDatabase.getDatabase(context)
+    val petDao = database.petProfileDao()
+
+    val pet = com.example.data.PetProfile(
+      name = "Copper",
+      breed = "Bloodhound",
+      age = 2,
+      photoUri = "file:///data/user/0/com.aistudio.barktalk/files/pet_photos/copper.jpg",
+      avatarEmoji = "🐕",
+      personality = "Loyal Guardian"
+    )
+
+    val insertedId = petDao.insertProfile(pet)
+    assertTrue(insertedId > 0)
+
+    val retrievedPet = petDao.getProfileById(insertedId)
+    assertNotNull(retrievedPet)
+    assertEquals("Copper", retrievedPet?.name)
+    assertEquals("Bloodhound", retrievedPet?.breed)
+    assertEquals(2, retrievedPet?.age)
+    assertEquals("file:///data/user/0/com.aistudio.barktalk/files/pet_photos/copper.jpg", retrievedPet?.photoUri)
+  }
 }
+

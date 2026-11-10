@@ -43,7 +43,7 @@ interface PetProfileDao {
     suspend fun selectProfile(id: Long)
 }
 
-@Database(entities = [PetProfile::class, TranslationLog::class], version = 2, exportSchema = false)
+@Database(entities = [PetProfile::class, TranslationLog::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun petProfileDao(): PetProfileDao
     abstract fun translationDao(): TranslationDao

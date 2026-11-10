@@ -86,10 +86,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.ai.TranslationState
 import com.example.audio.AudioProcessor
 import com.example.data.TranslationLog
 import com.example.ui.BarkTalkViewModel
+import com.example.ui.components.ShareTranslationDialog
 import com.example.util.SocialShareHelper
 
 @Composable
@@ -117,6 +119,7 @@ fun TranslateScreen(
     val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsState()
 
     var captureMode by remember { mutableStateOf("MediaRecorder") } // "MediaRecorder" or "ContinuousRadar"
+    var shareDialogLog by remember { mutableStateOf<TranslationLog?>(null) }
 
     // Permission launcher for microphone (continuous radar)
     val micPermissionLauncher = rememberLauncherForActivityResult(
@@ -179,11 +182,20 @@ fun TranslateScreen(
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(52.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = selectedPet?.avatarEmoji ?: "🐶",
-                                        fontSize = 28.sp
+                                if (!selectedPet?.photoUri.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = selectedPet?.photoUri,
+                                        contentDescription = "${selectedPet?.name}'s photo",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.clip(CircleShape)
                                     )
+                                } else {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = selectedPet?.avatarEmoji ?: "🐶",
+                                            fontSize = 28.sp
+                                        )
+                                    }
                                 }
                             }
                             Column {
@@ -812,7 +824,7 @@ fun TranslateScreen(
                                             recommendedAction = result.recommendedAction,
                                             canineSubtext = result.canineSubtext
                                         )
-                                        SocialShareHelper.shareTranslation(context, tempLog)
+                                        shareDialogLog = tempLog
                                     },
                                     modifier = Modifier
                                         .weight(1f)
@@ -992,4 +1004,12 @@ fun TranslateScreen(
             }
         }
     }
+
+    shareDialogLog?.let { logToShare ->
+        ShareTranslationDialog(
+            log = logToShare,
+            onDismissRequest = { shareDialogLog = null }
+        )
+    }
 }
+

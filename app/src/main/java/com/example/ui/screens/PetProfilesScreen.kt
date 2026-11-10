@@ -53,10 +53,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.PetProfile
 import com.example.ui.BarkTalkViewModel
+import com.example.ui.components.PetProfileForm
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,8 +151,17 @@ fun PetProfilesScreen(
                                         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                                         modifier = Modifier.size(52.dp)
                                     ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(pet.avatarEmoji, fontSize = 28.sp)
+                                        if (!pet.photoUri.isNullOrBlank()) {
+                                            AsyncImage(
+                                                model = pet.photoUri,
+                                                contentDescription = "${pet.name}'s photo",
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.clip(CircleShape)
+                                            )
+                                        } else {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(pet.avatarEmoji, fontSize = 28.sp)
+                                            }
                                         }
                                     }
 
@@ -269,9 +282,9 @@ fun PetProfilesScreen(
             onDismissRequest = { showProfileSheet = false },
             sheetState = sheetState
         ) {
-            PetProfileEditor(
+            PetProfileForm(
                 initialProfile = editingProfile,
-                onSave = { updated ->
+                onSaveProfile = { updated ->
                     if (editingProfile != null) {
                         viewModel.updatePetProfile(updated)
                     } else {
@@ -315,173 +328,10 @@ fun PetProfileEditor(
     onSave: (PetProfile) -> Unit,
     onCancel: () -> Unit
 ) {
-    var name by remember { mutableStateOf(initialProfile?.name ?: "") }
-    var breed by remember { mutableStateOf(initialProfile?.breed ?: "Golden Retriever") }
-    var ageYearsText by remember { mutableStateOf((initialProfile?.ageYears ?: 3).toString()) }
-    var ageMonthsText by remember { mutableStateOf((initialProfile?.ageMonths ?: 0).toString()) }
-    var avatarEmoji by remember { mutableStateOf(initialProfile?.avatarEmoji ?: "🐶") }
-    var personality by remember { mutableStateOf(initialProfile?.personality ?: "Gentle Goofball") }
-    var pitchProfile by remember { mutableStateOf(initialProfile?.pitchProfile ?: "Standard Bark") }
-    var favoriteTreat by remember { mutableStateOf(initialProfile?.favoriteTreat ?: "Cheddar Cheese") }
-
-    val emojis = listOf("🐶", "🐕", "🦮", "🐩", "🐺", "🐾", "🦊")
-    val personalities = listOf("Gentle Goofball", "Loyal Guardian", "Excited Zoomer", "Dramatic Diva", "Foodie Connoisseur", "Anxious Sweetheart")
-    val pitchProfiles = listOf("High Yip", "Standard Bark", "Deep Woof")
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text(
-            text = if (initialProfile != null) "Edit Pet Profile" else "Add New Dog Profile",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-
-        // Emoji Avatar selector
-        Text("Choose Dog Avatar Emoji:", style = MaterialTheme.typography.labelMedium)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(emojis) { emoji ->
-                Surface(
-                    shape = CircleShape,
-                    color = if (avatarEmoji == emoji) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                    border = if (avatarEmoji == emoji) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clickable { avatarEmoji = emoji }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(emoji, fontSize = 24.sp)
-                    }
-                }
-            }
-        }
-
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text("Dog's Name *") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag("input_pet_name"),
-            singleLine = true
-        )
-
-        OutlinedTextField(
-            value = breed,
-            onValueChange = { breed = it },
-            label = { Text("Breed * (e.g. Beagle, German Shepherd, Corgi)") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            OutlinedTextField(
-                value = ageYearsText,
-                onValueChange = { ageYearsText = it.filter { c -> c.isDigit() } },
-                label = { Text("Age (Years)") },
-                modifier = Modifier.weight(1f),
-                singleLine = true
-            )
-            OutlinedTextField(
-                value = ageMonthsText,
-                onValueChange = { ageMonthsText = it.filter { c -> c.isDigit() } },
-                label = { Text("Months") },
-                modifier = Modifier.weight(1f),
-                singleLine = true
-            )
-        }
-
-        // Personality
-        Text("Canine Personality Archetype:", style = MaterialTheme.typography.labelMedium)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(personalities) { p ->
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (personality == p) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.clickable { personality = p }
-                ) {
-                    Text(
-                        text = p,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (personality == p) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
-                }
-            }
-        }
-
-        // Pitch Profile
-        Text("Bark Vocal Pitch:", style = MaterialTheme.typography.labelMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            pitchProfiles.forEach { p ->
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (pitchProfile == p) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.clickable { pitchProfile = p }
-                ) {
-                    Text(
-                        text = p,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (pitchProfile == p) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
-                }
-            }
-        }
-
-        OutlinedTextField(
-            value = favoriteTreat,
-            onValueChange = { favoriteTreat = it },
-            label = { Text("Favorite Treat / Toy") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextButton(onClick = onCancel) {
-                Text("Cancel")
-            }
-            Spacer(Modifier.width(8.dp))
-            Button(
-                onClick = {
-                    if (name.isNotBlank()) {
-                        val years = ageYearsText.toIntOrNull() ?: 1
-                        val months = (ageMonthsText.toIntOrNull() ?: 0).coerceIn(0, 11)
-                        val profile = (initialProfile ?: PetProfile(
-                            name = name.trim(),
-                            breed = breed.trim().ifEmpty { "Canine" },
-                            ageYears = years,
-                            ageMonths = months
-                        )).copy(
-                            name = name.trim(),
-                            breed = breed.trim().ifEmpty { "Canine" },
-                            ageYears = years,
-                            ageMonths = months,
-                            avatarEmoji = avatarEmoji,
-                            personality = personality,
-                            pitchProfile = pitchProfile,
-                            favoriteTreat = favoriteTreat.trim().ifEmpty { "Treats" }
-                        )
-                        onSave(profile)
-                    }
-                },
-                enabled = name.isNotBlank(),
-                modifier = Modifier.testTag("save_pet_button")
-            ) {
-                Text("Save Dog Profile")
-            }
-        }
-    }
+    PetProfileForm(
+        initialProfile = initialProfile,
+        onSaveProfile = onSave,
+        onCancel = onCancel
+    )
 }
+
