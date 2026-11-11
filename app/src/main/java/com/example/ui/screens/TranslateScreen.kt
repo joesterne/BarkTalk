@@ -89,8 +89,10 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.ai.TranslationState
 import com.example.audio.AudioProcessor
+import com.example.audio.CanineSoundboardPlayer
 import com.example.data.TranslationLog
 import com.example.ui.BarkTalkViewModel
+import com.example.ui.components.DogSoundboardGridCard
 import com.example.ui.components.ShareTranslationDialog
 import com.example.util.SocialShareHelper
 
@@ -98,6 +100,8 @@ import com.example.util.SocialShareHelper
 fun TranslateScreen(
     viewModel: BarkTalkViewModel,
     onNavigateToProfiles: () -> Unit,
+    onNavigateToRecord: () -> Unit = {},
+    onNavigateToSoundboard: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -117,6 +121,8 @@ fun TranslateScreen(
     val mediaWaveform by viewModel.mediaRecorderWaveform.collectAsState()
     val lastRecordedSample by viewModel.lastRecordedSample.collectAsState()
     val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsState()
+    val currentlyPlayingSoundId by viewModel.currentlyPlayingSoundId.collectAsState()
+    val lastPlayedSound by viewModel.lastPlayedSound.collectAsState()
 
     var captureMode by remember { mutableStateOf("MediaRecorder") } // "MediaRecorder" or "ContinuousRadar"
     var shareDialogLog by remember { mutableStateOf<TranslationLog?>(null) }
@@ -297,16 +303,31 @@ fun TranslateScreen(
                         }
                     }
 
-                    Text(
-                        text = if (captureMode == "MediaRecorder") {
-                            if (isMediaRecording) "🔴 Recording Dog Bark via MediaRecorder..." else "Capture Dog Bark (MediaRecorder)"
-                        } else {
-                            if (isListening) "Listening for Barks & Whines..." else "Real-Time Ambient Dog Audio Radar"
-                        },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isMediaRecording || isListening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (captureMode == "MediaRecorder") {
+                                if (isMediaRecording) "🔴 Recording Dog Bark..." else "Capture Dog Bark"
+                            } else {
+                                if (isListening) "Listening for Barks..." else "Real-Time Dog Audio Radar"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isMediaRecording || isListening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        FilledTonalButton(
+                            onClick = onNavigateToRecord,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.testTag("open_acoustic_studio_button")
+                        ) {
+                            Text("Studio 🎙️", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
 
                     Spacer(Modifier.height(12.dp))
 
@@ -878,6 +899,18 @@ fun TranslateScreen(
 
                 else -> {}
             }
+        }
+
+        // 4.5 Grid-Based Canine Soundboard UI in the Main Compose Layout
+        item {
+            DogSoundboardGridCard(
+                items = CanineSoundboardPlayer.SOUNDBOARD_ITEMS,
+                currentlyPlayingId = currentlyPlayingSoundId,
+                lastPlayedSound = lastPlayedSound,
+                onPlaySound = { item -> viewModel.playSoundboard(item) },
+                onStopSound = { viewModel.stopSoundboard() },
+                onOpenFullSoundboard = onNavigateToSoundboard
+            )
         }
 
         // 5. App Controls & Notification Settings Card

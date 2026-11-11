@@ -61,8 +61,13 @@ data class SoundboardItem(
 class CanineSoundboardPlayer {
     private val TAG = "SoundboardPlayer"
     private var playbackJob: Job? = null
+    private val preRecordedSampleCache = java.util.concurrent.ConcurrentHashMap<String, ShortArray>()
+
     private val _currentlyPlayingId = MutableStateFlow<String?>(null)
     val currentlyPlayingId: StateFlow<String?> = _currentlyPlayingId.asStateFlow()
+
+    private val _lastPlayedSound = MutableStateFlow<SoundboardItem?>(null)
+    val lastPlayedSound: StateFlow<SoundboardItem?> = _lastPlayedSound.asStateFlow()
 
     companion object {
         val SOUNDBOARD_ITEMS = listOf(
@@ -280,13 +285,20 @@ class CanineSoundboardPlayer {
         )
     }
 
+    fun getPreRecordedPcmSamples(id: String, sampleRate: Int = 44100): ShortArray {
+        return preRecordedSampleCache.getOrPut(id) {
+            generateSyntheticCanineAudio(id, sampleRate)
+        }
+    }
+
     fun playSound(item: SoundboardItem, scope: CoroutineScope) {
         playbackJob?.cancel()
+        _currentlyPlayingId.value = item.id
+        _lastPlayedSound.value = item
         playbackJob = scope.launch(Dispatchers.Default) {
-            _currentlyPlayingId.value = item.id
             try {
                 val sampleRate = 44100
-                val samples = generateSyntheticCanineAudio(item.id, sampleRate)
+                val samples = getPreRecordedPcmSamples(item.id, sampleRate)
                 val bufferSize = samples.size * 2
 
                 val audioTrack = AudioTrack.Builder()

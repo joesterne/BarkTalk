@@ -270,6 +270,56 @@ class ExampleUnitTest {
         assertEquals("file:///data/user/0/com.aistudio.barktalk/files/pet_photos/pet_123.jpg", pet.photoUri)
         assertEquals("🦮", pet.avatarEmoji)
     }
+
+    @Test
+    fun testRecordedBarkSample_preparationAcousticMetrics() {
+        val dummyFile = java.io.File.createTempFile("test_sample", ".m4a")
+        dummyFile.writeBytes(ByteArray(2048)) // 2KB
+
+        val highClaritySample = com.example.audio.RecordedBarkSample(
+            audioFile = dummyFile,
+            durationSeconds = 2.4f,
+            peakAmplitude = 22000,
+            peakDb = 82,
+            averageDb = 55, // SNR = 27 dB
+            detectedBursts = 3,
+            acousticAnalysis = processor.classifyAcoustics(520, 82, 4)
+        )
+
+        assertEquals(27, highClaritySample.signalToNoiseRatioDb)
+        assertEquals("Crystal Clear", highClaritySample.clarityRating)
+        assertEquals(2L, highClaritySample.fileSizeKb)
+
+        val noisySample = com.example.audio.RecordedBarkSample(
+            audioFile = dummyFile,
+            durationSeconds = 1.0f,
+            peakAmplitude = 5000,
+            peakDb = 68,
+            averageDb = 62, // SNR = 6 dB
+            detectedBursts = 1,
+            acousticAnalysis = processor.classifyAcoustics(400, 68, 2)
+        )
+
+        assertEquals(6, noisySample.signalToNoiseRatioDb)
+        assertEquals("High Ambient Noise", noisySample.clarityRating)
+
+        dummyFile.delete()
+    }
+
+    @Test
+    fun testPreRecordedDogSounds_pcmGenerationAndCache() {
+        val player = CanineSoundboardPlayer()
+        val items = CanineSoundboardPlayer.SOUNDBOARD_ITEMS
+        assertTrue(items.size >= 15)
+
+        val firstItem = items.first()
+        val pcmSamples = player.getPreRecordedPcmSamples(firstItem.id)
+        assertTrue("Pre-recorded PCM samples must be non-empty", pcmSamples.isNotEmpty())
+
+        // Verify cached reference is returned on subsequent calls
+        val cachedSamples = player.getPreRecordedPcmSamples(firstItem.id)
+        assertTrue(pcmSamples === cachedSamples)
+    }
 }
 
 

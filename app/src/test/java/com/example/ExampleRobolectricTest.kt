@@ -1,13 +1,21 @@
 package com.example
 
 import android.content.Context
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
+import com.example.audio.CanineSoundboardPlayer
+import com.example.audio.SoundboardItem
 import com.example.data.AppDatabase
 import com.example.data.TranslationLog
+import com.example.ui.components.DogSoundboardGridCard
+import com.example.ui.theme.BarkTalkTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -16,6 +24,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class ExampleRobolectricTest {
+
+  @get:Rule
+  val composeTestRule = createComposeRule()
 
   @Test
   fun `read string from context`() {
@@ -83,6 +94,30 @@ class ExampleRobolectricTest {
     assertEquals("Bloodhound", retrievedPet?.breed)
     assertEquals(2, retrievedPet?.age)
     assertEquals("file:///data/user/0/com.aistudio.barktalk/files/pet_photos/copper.jpg", retrievedPet?.photoUri)
+  }
+
+  @Test
+  fun `grid soundboard UI plays pre-recorded dog sound when tapped`() {
+    var tappedSound: SoundboardItem? = null
+
+    composeTestRule.setContent {
+      BarkTalkTheme {
+        DogSoundboardGridCard(
+          items = CanineSoundboardPlayer.SOUNDBOARD_ITEMS,
+          currentlyPlayingId = null,
+          lastPlayedSound = null,
+          onPlaySound = { item -> tappedSound = item },
+          onStopSound = {}
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag("main_soundboard_grid").assertExists()
+    composeTestRule.onNodeWithTag("soundboard_grid_item_happy_greeting").assertExists().performClick()
+
+    assertNotNull(tappedSound)
+    assertEquals("happy_greeting", tappedSound?.id)
+    assertEquals("Happy Greeting Bark", tappedSound?.title)
   }
 }
 

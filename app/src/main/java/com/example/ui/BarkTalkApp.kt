@@ -47,15 +47,18 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Mic
 import com.example.R
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.PetProfilesScreen
+import com.example.ui.screens.RecordBarkScreen
 import com.example.ui.screens.SoundboardScreen
 import com.example.ui.screens.TranslateScreen
 import com.example.widget.BarkTalkWidgetProvider
 import kotlinx.coroutines.flow.StateFlow
 
 enum class BarkNavTab(val title: String) {
+    RECORD("Record"),
     TRANSLATE("Translate"),
     SOUNDBOARD("Soundboard"),
     HISTORY("History"),
@@ -137,6 +140,13 @@ fun BarkTalkApp(
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
                 NavigationBarItem(
+                    selected = currentTab == BarkNavTab.RECORD,
+                    onClick = { currentTab = BarkNavTab.RECORD },
+                    icon = { Icon(Icons.Default.Mic, contentDescription = "Record Studio") },
+                    label = { Text("Record") },
+                    modifier = Modifier.testTag("nav_tab_record")
+                )
+                NavigationBarItem(
                     selected = currentTab == BarkNavTab.TRANSLATE,
                     onClick = { currentTab = BarkNavTab.TRANSLATE },
                     icon = { Icon(Icons.Default.Hearing, contentDescription = "Translate") },
@@ -173,10 +183,19 @@ fun BarkTalkApp(
                 .padding(paddingValues)
         ) {
             when (currentTab) {
+                BarkNavTab.RECORD -> {
+                    RecordBarkScreen(
+                        viewModel = viewModel,
+                        onNavigateToTranslation = { currentTab = BarkNavTab.TRANSLATE },
+                        onNavigateToProfiles = { currentTab = BarkNavTab.PROFILES }
+                    )
+                }
                 BarkNavTab.TRANSLATE -> {
                     TranslateScreen(
                         viewModel = viewModel,
-                        onNavigateToProfiles = { currentTab = BarkNavTab.PROFILES }
+                        onNavigateToProfiles = { currentTab = BarkNavTab.PROFILES },
+                        onNavigateToRecord = { currentTab = BarkNavTab.RECORD },
+                        onNavigateToSoundboard = { currentTab = BarkNavTab.SOUNDBOARD }
                     )
                 }
                 BarkNavTab.SOUNDBOARD -> {

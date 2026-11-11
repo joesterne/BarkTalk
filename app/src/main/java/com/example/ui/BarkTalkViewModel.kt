@@ -63,6 +63,7 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
     val lastRecordedSample: StateFlow<com.example.audio.RecordedBarkSample?> = _lastRecordedSample.asStateFlow()
 
     val currentlyPlayingSoundId: StateFlow<String?> = soundboardPlayer.currentlyPlayingId
+    val lastPlayedSound: StateFlow<SoundboardItem?> = soundboardPlayer.lastPlayedSound
 
     private val _translationState = MutableStateFlow<TranslationState>(TranslationState.Idle)
     val translationState: StateFlow<TranslationState> = _translationState.asStateFlow()
@@ -107,6 +108,26 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
                 audioFilePath = sample.audioFile.absolutePath
             )
         }
+    }
+
+    fun stopMediaRecordingForPreparation(): com.example.audio.RecordedBarkSample? {
+        val sample = barkMediaRecorder.stopRecording()
+        if (sample != null) {
+            _lastRecordedSample.value = sample
+        }
+        return sample
+    }
+
+    fun submitPreparedSampleForAnalysis(sample: com.example.audio.RecordedBarkSample) {
+        translateVocalization(
+            analysis = sample.acousticAnalysis,
+            audioFilePath = sample.audioFile.absolutePath
+        )
+    }
+
+    fun discardRecordedSample() {
+        stopPlayingRecordedBark()
+        _lastRecordedSample.value = null
     }
 
     fun playRecordedBark(filePath: String) {

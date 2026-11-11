@@ -24,7 +24,20 @@ data class RecordedBarkSample(
     val averageDb: Int,
     val detectedBursts: Int,
     val acousticAnalysis: AcousticAnalysis
-)
+) {
+    val signalToNoiseRatioDb: Int
+        get() = (peakDb - averageDb).coerceAtLeast(0)
+
+    val clarityRating: String
+        get() = when {
+            signalToNoiseRatioDb >= 18 -> "Crystal Clear"
+            signalToNoiseRatioDb >= 10 -> "Good Acoustic Clarity"
+            else -> "High Ambient Noise"
+        }
+
+    val fileSizeKb: Long
+        get() = (audioFile.length() / 1024L).coerceAtLeast(1L)
+}
 
 class BarkMediaRecorder(private val context: Context) {
     private val TAG = "BarkMediaRecorder"
