@@ -43,11 +43,17 @@ interface PetProfileDao {
     suspend fun selectProfile(id: Long)
 }
 
-@Database(entities = [PetProfile::class, TranslationLog::class], version = 3, exportSchema = false)
+@Database(
+    entities = [PetProfile::class, TranslationLog::class, RecordedBark::class],
+    version = 4,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun petProfileDao(): PetProfileDao
     abstract fun translationDao(): TranslationDao
+    abstract fun recordedBarkDao(): RecordedBarkDao
     fun translationLogDao(): TranslationDao = translationDao()
+    fun barkDao(): RecordedBarkDao = recordedBarkDao()
 
     companion object {
         @Volatile
@@ -155,6 +161,46 @@ abstract class AppDatabase : RoomDatabase() {
                                 confidencePercent = 98,
                                 recommendedAction = "Reward good behavior with a healthy treat or play session.",
                                 canineSubtext = "High harmonic whine coupled with harmonic pitch glide indicates non-distress positive solicitation.",
+                                isFavorite = false
+                            )
+                        )
+
+                        val recordedBarkDao = database.recordedBarkDao()
+                        recordedBarkDao.insertRecordedBark(
+                            RecordedBark(
+                                petId = petId1,
+                                petName = "Barnaby",
+                                petBreed = "Golden Retriever",
+                                timestamp = System.currentTimeMillis() - 1000 * 60 * 18,
+                                translation = "Squirrel! Alert! Fluffy-tailed intruder perched upon the cedar fence!",
+                                durationSeconds = 2.1f,
+                                peakDb = 78,
+                                dominantPitchHz = 480,
+                                vocalizationType = "Rapid Alarm Bark",
+                                cadenceDescription = "3 sharp staccato bursts, 0.4s interval",
+                                detectedEmotion = "Alert & Vigilant",
+                                dogThought = "Must notify human instantly.",
+                                urgencyLevel = "HIGH",
+                                confidencePercent = 94,
+                                isFavorite = true
+                            )
+                        )
+                        recordedBarkDao.insertRecordedBark(
+                            RecordedBark(
+                                petId = petId1,
+                                petName = "Barnaby",
+                                petBreed = "Golden Retriever",
+                                timestamp = System.currentTimeMillis() - 1000 * 60 * 120,
+                                translation = "Did you just touch the treat cupboard door? You definitely did!",
+                                durationSeconds = 1.6f,
+                                peakDb = 62,
+                                dominantPitchHz = 610,
+                                vocalizationType = "Playful Yip & Whine",
+                                cadenceDescription = "Melodic rising pitch with tail wagging",
+                                detectedEmotion = "Anticipation & Joy",
+                                dogThought = "I am sitting very politely.",
+                                urgencyLevel = "LOW",
+                                confidencePercent = 98,
                                 isFavorite = false
                             )
                         )

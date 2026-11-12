@@ -320,8 +320,65 @@ class ExampleUnitTest {
         val cachedSamples = player.getPreRecordedPcmSamples(firstItem.id)
         assertTrue(pcmSamples === cachedSamples)
     }
+
+    @Test
+    fun testRecordedBarkEntity_timestampAndAiTranslation() {
+        val ts = 1712000000000L
+        val recordedBark = com.example.data.RecordedBark(
+            timestamp = ts,
+            translation = "Someone is knocking on the front door!",
+            audioFilePath = "/data/user/0/com.aistudio.barktalk/cache/bark_1.m4a",
+            durationSeconds = 2.2f,
+            peakDb = 81,
+            dominantPitchHz = 490,
+            vocalizationType = "Rapid Alarm Bark",
+            detectedEmotion = "Alert & Protective",
+            petName = "Barnaby",
+            petBreed = "Golden Retriever"
+        )
+
+        assertEquals(ts, recordedBark.timestamp)
+        assertEquals("Someone is knocking on the front door!", recordedBark.translation)
+        assertEquals("Someone is knocking on the front door!", recordedBark.aiTranslation)
+        assertEquals("Someone is knocking on the front door!", recordedBark.englishTranslation)
+        assertEquals(81, recordedBark.peakDb)
+        assertEquals("Barnaby", recordedBark.petName)
+    }
+
+    @Test
+    fun testPdfExporter_generatesValidPdfFromHistoryLogs() {
+        val logs = listOf(
+            com.example.data.TranslationLog(
+                id = 1L,
+                petId = 1L,
+                petName = "Barnaby",
+                petBreed = "Golden Retriever",
+                timestamp = 1715000000000L,
+                vocalizationType = "Rapid Alarm Bark",
+                dominantPitchHz = 510,
+                intensityDb = 82,
+                cadenceDescription = "3 staccato bursts",
+                englishTranslation = "Package delivery at the porch!",
+                dogThought = "Must alert the family immediately.",
+                detectedEmotion = "Alert & Vigilant",
+                urgencyLevel = "HIGH",
+                confidencePercent = 96,
+                recommendedAction = "Check front door",
+                canineSubtext = "Territorial alert"
+            )
+        )
+
+        val outputStream = java.io.ByteArrayOutputStream()
+        com.example.util.BarkHistoryPdfExporter.writePdfToStream(
+            logs = logs,
+            outputStream = outputStream,
+            reportTitle = "Barnaby Weekly Bark Report"
+        )
+
+        val pdfBytes = outputStream.toByteArray()
+        assertTrue("Exported PDF must be non-empty", pdfBytes.size > 100)
+        val header = String(pdfBytes.copyOfRange(0, 5), Charsets.US_ASCII)
+        assertEquals("%PDF-", header)
+    }
 }
-
-
-
 

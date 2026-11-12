@@ -84,9 +84,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
+import androidx.compose.material.icons.filled.Delete
 import com.example.audio.RecordedBarkSample
 import com.example.data.PetProfile
+import com.example.data.RecordedBark
 import com.example.ui.BarkTalkViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * RecordBarkScreen captures dog barks using the device microphone via MediaRecorder,
@@ -99,6 +104,7 @@ fun RecordBarkScreen(
     viewModel: BarkTalkViewModel,
     onNavigateToTranslation: () -> Unit,
     onNavigateToProfiles: () -> Unit,
+    onNavigateToPastRecordings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -109,6 +115,7 @@ fun RecordBarkScreen(
     val waveform by viewModel.mediaRecorderWaveform.collectAsState()
     val lastRecordedSample by viewModel.lastRecordedSample.collectAsState()
     val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsState()
+    val recordedBarks by viewModel.recordedBarks.collectAsState()
 
     var hasMicPermission by remember {
         mutableStateOf(
@@ -362,6 +369,14 @@ fun RecordBarkScreen(
                 )
             }
         }
+
+        // Stored Recorded Dog Barks Vault (Room Database Entity & DAO)
+        RecordedBarksVaultSection(
+            recordedBarks = recordedBarks,
+            onSpeakTranslation = { viewModel.speakTranslation(it.translation) },
+            onDeleteBark = { viewModel.deleteRecordedBark(it) },
+            onViewAllRecordings = onNavigateToPastRecordings
+        )
     }
 }
 
@@ -808,3 +823,167 @@ private fun TelemetryPill(
         }
     }
 }
+
+@Composable
+private fun RecordedBarksVaultSection(
+    recordedBarks: List<RecordedBark>,
+    onSpeakTranslation: (RecordedBark) -> Unit,
+    onDeleteBark: (RecordedBark) -> Unit,
+    onViewAllRecordings: () -> Unit = {}
+) {
+    val dateFormatter = remember {
+        SimpleDateFormat("MMM d, yyyy • h:mm a", Locale.getDefault())
+    }
+
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("recorded_barks_vault_card")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Stored Recorded Dog Barks",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Persisted in Room with recording timestamp & AI translation",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Text(
+                        text = "${recordedBarks.size} Saved",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            if (recordedBarks.isEmpty()) {
+                Text(
+                    text = "No recorded barks saved yet. Record a dog bark above to store its timestamp and AI translation.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                recordedBarks.take(5).forEach { bark ->
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("recorded_bark_item_${bark.id}")
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "🐾 ${bark.petName} • ${bark.vocalizationType}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = dateFormatter.format(Date(bark.timestamp)),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+
+                            Text(
+                                text = "\"${bark.translation}\"",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${bark.peakDb} dB • ${bark.dominantPitchHz} Hz • ${bark.detectedEmotion}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    IconButton(
+                                        onClick = { onSpeakTranslation(bark) },
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .testTag("speak_recorded_bark_${bark.id}")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.VolumeUp,
+                                            contentDescription = "Speak AI translation",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = { onDeleteBark(bark) },
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .testTag("delete_recorded_bark_${bark.id}")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete recorded bark",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            OutlinedButton(
+                onClick = onViewAllRecordings,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("view_all_past_recordings_button")
+            ) {
+                Text("Open Full Past Recordings Screen")
+            }
+        }
+    }
+}
+

@@ -28,7 +28,9 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
     private val database = AppDatabase.getDatabase(application)
     private val petDao = database.petProfileDao()
     private val translationDao = database.translationDao()
+    private val recordedBarkDao = database.recordedBarkDao()
     val translationRepository = com.example.data.TranslationRepository(translationDao)
+    val recordedBarkRepository = com.example.data.RecordedBarkRepository(recordedBarkDao)
 
     private val audioProcessor = AudioProcessor()
     private val soundboardPlayer = CanineSoundboardPlayer()
@@ -45,6 +47,9 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val translationLogs: StateFlow<List<TranslationLog>> = translationRepository.allTranslations
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val recordedBarks: StateFlow<List<com.example.data.RecordedBark>> = recordedBarkRepository.allRecordedBarks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val isListening: StateFlow<Boolean> = audioProcessor.isRecording
@@ -152,12 +157,13 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
                 val result = dogAiTranslator.translateCanineVocalization(currentPet, analysis)
                 _translationState.value = TranslationState.Success(result, analysis)
 
+                val nowTimestamp = System.currentTimeMillis()
                 // Save to Room history with optional captured audio file
                 val newLog = TranslationLog(
                     petId = currentPet.id,
                     petName = currentPet.name,
                     petBreed = currentPet.breed,
-                    timestamp = System.currentTimeMillis(),
+                    timestamp = nowTimestamp,
                     vocalizationType = analysis.vocalizationType,
                     dominantPitchHz = analysis.pitchHz,
                     intensityDb = analysis.volumeDb,
@@ -173,6 +179,29 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
                     audioFilePath = audioFilePath
                 )
                 val logId = translationRepository.insertTranslation(newLog)
+
+                // Also persist to RecordedBark Room table with timestamp and AI-generated translation
+                val recordedDuration = _lastRecordedSample.value?.durationSeconds ?: 1.8f
+                val recordedBark = com.example.data.RecordedBark(
+                    timestamp = nowTimestamp,
+                    translation = result.englishTranslation,
+                    audioFilePath = audioFilePath,
+                    durationSeconds = recordedDuration,
+                    peakDb = analysis.volumeDb,
+                    dominantPitchHz = analysis.pitchHz,
+                    vocalizationType = analysis.vocalizationType,
+                    cadenceDescription = analysis.cadenceDescription,
+                    detectedEmotion = result.detectedEmotion,
+                    dogThought = result.dogThought,
+                    urgencyLevel = result.urgencyLevel,
+                    confidencePercent = result.confidencePercent,
+                    petId = currentPet.id,
+                    petName = currentPet.name,
+                    petBreed = currentPet.breed,
+                    isFavorite = false
+                )
+                recordedBarkRepository.insertRecordedBark(recordedBark)
+
                 com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(getApplication())
 
                 // Trigger push notification if HIGH or CRITICAL
@@ -228,9 +257,22 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun deleteRecordedBark(bark: com.example.data.RecordedBark) {
+        viewModelScope.launch {
+            recordedBarkRepository.deleteRecordedBark(bark)
+        }
+    }
+
+    fun toggleRecordedBarkFavorite(bark: com.example.data.RecordedBark) {
+        viewModelScope.launch {
+            recordedBarkRepository.setFavorite(bark.id, !bark.isFavorite)
+        }
+    }
+
     fun clearAllLogs() {
         viewModelScope.launch {
             translationRepository.clearHistory()
+            recordedBarkRepository.clearAllRecordedBarks()
             com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(getApplication())
         }
     }

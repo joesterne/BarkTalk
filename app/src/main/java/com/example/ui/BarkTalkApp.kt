@@ -47,9 +47,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.IconButton
 import com.example.R
 import com.example.ui.screens.HistoryScreen
+import com.example.ui.screens.PastRecordingsScreen
 import com.example.ui.screens.PetProfilesScreen
 import com.example.ui.screens.RecordBarkScreen
 import com.example.ui.screens.SoundboardScreen
@@ -73,22 +76,29 @@ fun BarkTalkApp(
     modifier: Modifier = Modifier
 ) {
     var currentTab by remember { mutableStateOf(BarkNavTab.TRANSLATE) }
+    var showPastRecordings by remember { mutableStateOf(false) }
     val selectedPet by viewModel.selectedPet.collectAsState()
     val incomingIntent by intentFlow?.collectAsState() ?: remember { mutableStateOf(null) }
 
     LaunchedEffect(incomingIntent) {
         val targetTab = incomingIntent?.getStringExtra(BarkTalkWidgetProvider.EXTRA_START_TAB)
         if (targetTab == "soundboard") {
+            showPastRecordings = false
             currentTab = BarkNavTab.SOUNDBOARD
         } else if (incomingIntent?.getBooleanExtra(BarkTalkWidgetProvider.EXTRA_START_LISTENING, false) == true) {
+            showPastRecordings = false
             currentTab = BarkNavTab.TRANSLATE
             viewModel.startListening()
         }
     }
 
-    // Back handling: if not on Translate tab, return to Translate tab
-    BackHandler(enabled = currentTab != BarkNavTab.TRANSLATE) {
-        currentTab = BarkNavTab.TRANSLATE
+    // Back handling: if viewing PastRecordingsScreen or not on Translate tab
+    BackHandler(enabled = showPastRecordings || currentTab != BarkNavTab.TRANSLATE) {
+        if (showPastRecordings) {
+            showPastRecordings = false
+        } else {
+            currentTab = BarkNavTab.TRANSLATE
+        }
     }
 
     Scaffold(
@@ -129,6 +139,18 @@ fun BarkTalkApp(
                         }
                     }
                 },
+                actions = {
+                    IconButton(
+                        onClick = { showPastRecordings = !showPastRecordings },
+                        modifier = Modifier.testTag("open_past_recordings_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LibraryMusic,
+                            contentDescription = "Past Bark Recordings",
+                            tint = if (showPastRecordings) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
@@ -140,36 +162,51 @@ fun BarkTalkApp(
                 containerColor = MaterialTheme.colorScheme.surface
             ) {
                 NavigationBarItem(
-                    selected = currentTab == BarkNavTab.RECORD,
-                    onClick = { currentTab = BarkNavTab.RECORD },
+                    selected = !showPastRecordings && currentTab == BarkNavTab.RECORD,
+                    onClick = {
+                        showPastRecordings = false
+                        currentTab = BarkNavTab.RECORD
+                    },
                     icon = { Icon(Icons.Default.Mic, contentDescription = "Record Studio") },
                     label = { Text("Record") },
                     modifier = Modifier.testTag("nav_tab_record")
                 )
                 NavigationBarItem(
-                    selected = currentTab == BarkNavTab.TRANSLATE,
-                    onClick = { currentTab = BarkNavTab.TRANSLATE },
+                    selected = !showPastRecordings && currentTab == BarkNavTab.TRANSLATE,
+                    onClick = {
+                        showPastRecordings = false
+                        currentTab = BarkNavTab.TRANSLATE
+                    },
                     icon = { Icon(Icons.Default.Hearing, contentDescription = "Translate") },
                     label = { Text("Translate") },
                     modifier = Modifier.testTag("nav_tab_translate")
                 )
                 NavigationBarItem(
-                    selected = currentTab == BarkNavTab.SOUNDBOARD,
-                    onClick = { currentTab = BarkNavTab.SOUNDBOARD },
+                    selected = !showPastRecordings && currentTab == BarkNavTab.SOUNDBOARD,
+                    onClick = {
+                        showPastRecordings = false
+                        currentTab = BarkNavTab.SOUNDBOARD
+                    },
                     icon = { Icon(Icons.Default.VolumeUp, contentDescription = "Soundboard") },
                     label = { Text("Soundboard") },
                     modifier = Modifier.testTag("nav_tab_soundboard")
                 )
                 NavigationBarItem(
-                    selected = currentTab == BarkNavTab.HISTORY,
-                    onClick = { currentTab = BarkNavTab.HISTORY },
+                    selected = !showPastRecordings && currentTab == BarkNavTab.HISTORY,
+                    onClick = {
+                        showPastRecordings = false
+                        currentTab = BarkNavTab.HISTORY
+                    },
                     icon = { Icon(Icons.Default.History, contentDescription = "History") },
                     label = { Text("History") },
                     modifier = Modifier.testTag("nav_tab_history")
                 )
                 NavigationBarItem(
-                    selected = currentTab == BarkNavTab.PROFILES,
-                    onClick = { currentTab = BarkNavTab.PROFILES },
+                    selected = !showPastRecordings && currentTab == BarkNavTab.PROFILES,
+                    onClick = {
+                        showPastRecordings = false
+                        currentTab = BarkNavTab.PROFILES
+                    },
                     icon = { Icon(Icons.Default.Pets, contentDescription = "Dogs") },
                     label = { Text("Dogs") },
                     modifier = Modifier.testTag("nav_tab_profiles")
@@ -182,30 +219,45 @@ fun BarkTalkApp(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            when (currentTab) {
-                BarkNavTab.RECORD -> {
-                    RecordBarkScreen(
-                        viewModel = viewModel,
-                        onNavigateToTranslation = { currentTab = BarkNavTab.TRANSLATE },
-                        onNavigateToProfiles = { currentTab = BarkNavTab.PROFILES }
-                    )
-                }
-                BarkNavTab.TRANSLATE -> {
-                    TranslateScreen(
-                        viewModel = viewModel,
-                        onNavigateToProfiles = { currentTab = BarkNavTab.PROFILES },
-                        onNavigateToRecord = { currentTab = BarkNavTab.RECORD },
-                        onNavigateToSoundboard = { currentTab = BarkNavTab.SOUNDBOARD }
-                    )
-                }
-                BarkNavTab.SOUNDBOARD -> {
-                    SoundboardScreen(viewModel = viewModel)
-                }
-                BarkNavTab.HISTORY -> {
-                    HistoryScreen(viewModel = viewModel)
-                }
-                BarkNavTab.PROFILES -> {
-                    PetProfilesScreen(viewModel = viewModel)
+            if (showPastRecordings) {
+                PastRecordingsScreen(
+                    viewModel = viewModel,
+                    onNavigateBack = { showPastRecordings = false },
+                    onNavigateToRecord = {
+                        showPastRecordings = false
+                        currentTab = BarkNavTab.RECORD
+                    }
+                )
+            } else {
+                when (currentTab) {
+                    BarkNavTab.RECORD -> {
+                        RecordBarkScreen(
+                            viewModel = viewModel,
+                            onNavigateToTranslation = { currentTab = BarkNavTab.TRANSLATE },
+                            onNavigateToProfiles = { currentTab = BarkNavTab.PROFILES },
+                            onNavigateToPastRecordings = { showPastRecordings = true }
+                        )
+                    }
+                    BarkNavTab.TRANSLATE -> {
+                        TranslateScreen(
+                            viewModel = viewModel,
+                            onNavigateToProfiles = { currentTab = BarkNavTab.PROFILES },
+                            onNavigateToRecord = { currentTab = BarkNavTab.RECORD },
+                            onNavigateToSoundboard = { currentTab = BarkNavTab.SOUNDBOARD }
+                        )
+                    }
+                    BarkNavTab.SOUNDBOARD -> {
+                        SoundboardScreen(viewModel = viewModel)
+                    }
+                    BarkNavTab.HISTORY -> {
+                        HistoryScreen(
+                            viewModel = viewModel,
+                            onNavigateToRecord = { currentTab = BarkNavTab.RECORD }
+                        )
+                    }
+                    BarkNavTab.PROFILES -> {
+                        PetProfilesScreen(viewModel = viewModel)
+                    }
                 }
             }
         }

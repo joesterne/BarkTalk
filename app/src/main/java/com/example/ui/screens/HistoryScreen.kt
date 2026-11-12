@@ -49,9 +49,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material3.FilledTonalButton
 import com.example.data.TranslationLog
 import com.example.ui.BarkTalkViewModel
+import com.example.ui.components.PdfExportDialog
 import com.example.ui.components.ShareTranslationDialog
+import com.example.util.BarkHistoryPdfExporter.toTranslationLog
 import com.example.util.SocialShareHelper
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -60,12 +64,16 @@ import java.util.Locale
 @Composable
 fun HistoryScreen(
     viewModel: BarkTalkViewModel,
+    onNavigateToRecord: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val allLogs by viewModel.translationLogs.collectAsState()
+    val recordedBarks by viewModel.recordedBarks.collectAsState()
+    var historyTabMode by remember { mutableStateOf("Recordings") } // "Recordings" or "Logs"
     var filterMode by remember { mutableStateOf("All") } // "All", "Favorites", "Urgent"
     var showClearDialog by remember { mutableStateOf(false) }
+    var showPdfExportDialog by remember { mutableStateOf(false) }
     var shareDialogLog by remember { mutableStateOf<TranslationLog?>(null) }
 
     val filteredLogs = remember(allLogs, filterMode) {
@@ -83,43 +91,96 @@ fun HistoryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
             .testTag("history_screen")
     ) {
-        // Header with Clear Button
+        // Segmented Switcher + Export PDF Action Button
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = "Translation History Log",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                FilterChip(
+                    selected = historyTabMode == "Recordings",
+                    onClick = { historyTabMode = "Recordings" },
+                    label = { Text("🎙️ Recordings (${recordedBarks.size})") },
+                    modifier = Modifier.testTag("tab_past_recordings")
                 )
-                Text(
-                    text = "${filteredLogs.size} translations recorded",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                FilterChip(
+                    selected = historyTabMode == "Logs",
+                    onClick = { historyTabMode = "Logs" },
+                    label = { Text("📜 Logs (${allLogs.size})") },
+                    modifier = Modifier.testTag("tab_translation_logs")
                 )
             }
 
-            if (allLogs.isNotEmpty()) {
-                IconButton(
-                    onClick = { showClearDialog = true },
-                    modifier = Modifier.testTag("clear_history_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DeleteSweep,
-                        contentDescription = "Clear History",
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
+            FilledTonalButton(
+                onClick = { showPdfExportDialog = true },
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.testTag("export_history_pdf_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PictureAsPdf,
+                    contentDescription = "Export History to PDF",
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text("PDF", style = MaterialTheme.typography.labelMedium)
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        if (historyTabMode == "Recordings") {
+            PastRecordingsScreen(
+                viewModel = viewModel,
+                onNavigateToRecord = onNavigateToRecord,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+        ) {
+            // Header with Clear Button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Translation History Log",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${filteredLogs.size} translations recorded",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                if (allLogs.isNotEmpty()) {
+                    IconButton(
+                        onClick = { showClearDialog = true },
+                        modifier = Modifier.testTag("clear_history_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteSweep,
+                            contentDescription = "Clear History",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
 
         // Filters: All, Favorites, High Urgency
         Row(
@@ -195,6 +256,20 @@ fun HistoryScreen(
                 }
             }
         }
+        }
+        }
+    }
+
+    if (showPdfExportDialog) {
+        val logsToExport = if (historyTabMode == "Recordings" && recordedBarks.isNotEmpty()) {
+            recordedBarks.map { it.toTranslationLog() }
+        } else {
+            filteredLogs
+        }
+        PdfExportDialog(
+            logs = logsToExport,
+            onDismissRequest = { showPdfExportDialog = false }
+        )
     }
 
     if (showClearDialog) {
