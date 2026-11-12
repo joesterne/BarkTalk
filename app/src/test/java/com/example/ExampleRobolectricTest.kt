@@ -271,5 +271,152 @@ class ExampleRobolectricTest {
     composeTestRule.onNodeWithTag("confirm_share_pdf_button").assertExists()
     composeTestRule.onNodeWithTag("save_pdf_to_device_button").assertExists()
   }
-}
 
+  @Test
+  fun `weekly bark frequency bar chart displays 7 days of translations and supports day inspection`() {
+    val now = 1731420000000L
+    val oneDayMs = 24L * 60 * 60 * 1000L
+
+    val logs = listOf(
+      TranslationLog(
+        id = 401L,
+        petId = 1L,
+        petName = "Barnaby",
+        petBreed = "Golden Retriever",
+        timestamp = now - 1800_000L, // Today (dayIndex = 6)
+        vocalizationType = "Rapid Alarm Bark",
+        dominantPitchHz = 510,
+        intensityDb = 82,
+        cadenceDescription = "Rapid",
+        englishTranslation = "Squirrel on the fence!",
+        dogThought = "Intruder alert",
+        detectedEmotion = "Alert",
+        urgencyLevel = "HIGH",
+        confidencePercent = 96,
+        recommendedAction = "Check yard",
+        canineSubtext = "Territorial"
+      ),
+      TranslationLog(
+        id = 402L,
+        petId = 1L,
+        petName = "Barnaby",
+        petBreed = "Golden Retriever",
+        timestamp = now - (3 * oneDayMs), // 3 days ago (dayIndex = 3)
+        vocalizationType = "Playful Yip",
+        dominantPitchHz = 590,
+        intensityDb = 70,
+        cadenceDescription = "Bouncy",
+        englishTranslation = "Let's play tug-of-war!",
+        dogThought = "Playtime",
+        detectedEmotion = "Playful",
+        urgencyLevel = "LOW",
+        confidencePercent = 94,
+        recommendedAction = "Play",
+        canineSubtext = "Play"
+      ),
+      TranslationLog(
+        id = 403L,
+        petId = 1L,
+        petName = "Barnaby",
+        petBreed = "Golden Retriever",
+        timestamp = now - (3 * oneDayMs) - 3600_000L, // Also 3 days ago (dayIndex = 3)
+        vocalizationType = "Playful Yip",
+        dominantPitchHz = 605,
+        intensityDb = 72,
+        cadenceDescription = "Bouncy",
+        englishTranslation = "More treats please!",
+        dogThought = "Hungry",
+        detectedEmotion = "Joy",
+        urgencyLevel = "LOW",
+        confidencePercent = 98,
+        recommendedAction = "Give snack",
+        canineSubtext = "Solicitation"
+      )
+    )
+
+    val buckets = com.example.ui.components.WeeklyBarkFrequencyCalculator.computeLast7DaysFromLogs(
+      logs = logs,
+      referenceTimeMillis = now
+    )
+
+    composeTestRule.setContent {
+      BarkTalkTheme {
+        com.example.ui.components.WeeklyBarkFrequencyChart(
+          buckets = buckets
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag("weekly_bark_frequency_chart").assertExists()
+    composeTestRule.onNodeWithTag("weekly_bark_canvas").assertExists()
+    composeTestRule.onNodeWithTag("weekly_chart_total_badge").assertExists()
+    composeTestRule.onNodeWithTag("weekly_chart_tooltip").assertExists()
+
+    // Verify all 7 day columns exist on the X-axis and tap dayIndex 3 (which has 2 barks)
+    for (dayIdx in 0..6) {
+      composeTestRule.onNodeWithTag("weekly_chart_day_$dayIdx").assertExists()
+    }
+    composeTestRule.onNodeWithTag("weekly_chart_day_3").performClick()
+    composeTestRule.onNodeWithTag("weekly_chart_selected_day_count").assertExists()
+  }
+
+  @Test
+  fun `recording screen dog profile selector associates recording via selection chips and dropdown`() {
+    val profiles = listOf(
+      com.example.data.PetProfile(
+        id = 1L,
+        name = "Barnaby",
+        breed = "Golden Retriever",
+        age = 3,
+        avatarEmoji = "🦮"
+      ),
+      com.example.data.PetProfile(
+        id = 2L,
+        name = "Luna",
+        breed = "French Bulldog",
+        age = 2,
+        avatarEmoji = "🐕"
+      ),
+      com.example.data.PetProfile(
+        id = 3L,
+        name = "Zeus",
+        breed = "German Shepherd",
+        age = 4,
+        avatarEmoji = "🐺"
+      )
+    )
+
+    var selectedProfile: com.example.data.PetProfile? = profiles[0]
+
+    composeTestRule.setContent {
+      val currentState = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(selectedProfile)
+      }
+      BarkTalkTheme {
+        com.example.ui.screens.DogProfileRecordingSelector(
+          profiles = profiles,
+          selectedPet = currentState.value,
+          onSelectPet = { chosen ->
+            currentState.value = chosen
+            selectedProfile = chosen
+          },
+          onManageProfiles = {}
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag("dog_profile_selector_card").assertExists()
+    composeTestRule.onNodeWithTag("dog_profile_chips_row").assertExists()
+    composeTestRule.onNodeWithTag("dog_profile_chip_2").assertExists().performClick()
+
+    assertEquals("Luna", selectedProfile?.name)
+    assertEquals("French Bulldog", selectedProfile?.breed)
+
+    // Also test selecting via the dropdown menu
+    composeTestRule.onNodeWithTag("dog_profile_dropdown_button").assertExists().performClick()
+    composeTestRule.onNodeWithTag("dog_profile_dropdown_item_3").assertExists().performClick()
+
+    assertEquals("Zeus", selectedProfile?.name)
+    assertEquals("German Shepherd", selectedProfile?.breed)
+  }
+}

@@ -32,11 +32,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Hearing
@@ -51,7 +55,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -108,6 +116,7 @@ fun RecordBarkScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val petProfiles by viewModel.petProfiles.collectAsState()
     val selectedPet by viewModel.selectedPet.collectAsState()
     val isRecording by viewModel.isMediaRecording.collectAsState()
     val durationSeconds by viewModel.mediaRecordingDurationSeconds.collectAsState()
@@ -116,6 +125,13 @@ fun RecordBarkScreen(
     val lastRecordedSample by viewModel.lastRecordedSample.collectAsState()
     val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsState()
     val recordedBarks by viewModel.recordedBarks.collectAsState()
+
+    // Local selection state synced with Room's selectedPet so selecting a chip/dropdown item
+    // immediately updates the recording's associated dog profile
+    var locallyAssociatedPet by remember(selectedPet) {
+        mutableStateOf(selectedPet)
+    }
+    val activeRecordingPet = locallyAssociatedPet ?: selectedPet ?: petProfiles.firstOrNull()
 
     var hasMicPermission by remember {
         mutableStateOf(
@@ -164,10 +180,17 @@ fun RecordBarkScreen(
             }
         }
 
-        // Active Dog Profile Calibration Card
-        ActivePetBanner(
-            pet = selectedPet,
-            onSwitchPet = onNavigateToProfiles
+        // Dog Profile Selector Card (Dropdown + Selection Chips to associate recording with a dog profile)
+        DogProfileRecordingSelector(
+            profiles = petProfiles,
+            selectedPet = activeRecordingPet,
+            onSelectPet = { chosenPet ->
+                locallyAssociatedPet = chosenPet
+                if (chosenPet.id > 0L) {
+                    viewModel.selectPet(chosenPet.id)
+                }
+            },
+            onManageProfiles = onNavigateToProfiles
         )
 
         if (!hasMicPermission) {
@@ -356,11 +379,15 @@ fun RecordBarkScreen(
             lastRecordedSample?.let { sample ->
                 PreparedAudioAnalysisCard(
                     sample = sample,
+                    associatedPet = activeRecordingPet,
                     isPlaying = currentlyPlayingBarkPath == sample.audioFile.absolutePath,
                     onPlay = { viewModel.playRecordedBark(sample.audioFile.absolutePath) },
                     onStop = { viewModel.stopPlayingRecordedBark() },
                     onAnalyzeWithAi = {
-                        viewModel.submitPreparedSampleForAnalysis(sample)
+                        viewModel.submitPreparedSampleForAnalysis(
+                            sample = sample,
+                            targetPet = activeRecordingPet
+                        )
                         onNavigateToTranslation()
                     },
                     onReRecord = {
@@ -380,69 +407,261 @@ fun RecordBarkScreen(
     }
 }
 
+/**
+ * Interactive selector card on the recording screen that includes both a dropdown menu and
+ * horizontal selection chips to associate a bark recording with a specific dog profile.
+ */
 @Composable
-private fun ActivePetBanner(
-    pet: PetProfile?,
-    onSwitchPet: () -> Unit
+fun DogProfileRecordingSelector(
+    profiles: List<PetProfile>,
+    selectedPet: PetProfile?,
+    onSelectPet: (PetProfile) -> Unit,
+    onManageProfiles: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val displayProfiles = remember(profiles, selectedPet) {
+        if (profiles.isNotEmpty()) {
+            profiles
+        } else {
+            listOf(
+                selectedPet ?: PetProfile(
+                    id = 1L,
+                    name = "Barnaby",
+                    breed = "Golden Retriever",
+                    ageYears = 3,
+                    avatarEmoji = "🦮",
+                    personality = "Gentle Goofball",
+                    isSelected = true
+                ),
+                PetProfile(
+                    id = 2L,
+                    name = "Luna",
+                    breed = "French Bulldog",
+                    ageYears = 2,
+                    avatarEmoji = "🐕",
+                    personality = "Dramatic Diva"
+                ),
+                PetProfile(
+                    id = 3L,
+                    name = "Zeus",
+                    breed = "German Shepherd",
+                    ageYears = 4,
+                    avatarEmoji = "🐺",
+                    personality = "Loyal Guardian"
+                )
+            )
+        }
+    }
+
+    val currentPet = selectedPet ?: displayProfiles.first()
+    var dropdownExpanded by remember { mutableStateOf(false) }
+
     Card(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
-        modifier = Modifier.fillMaxWidth()
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("dog_profile_selector_card")
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Top Row: Dropdown Selector Button + Manage Profiles Link
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    if (!pet?.photoUri.isNullOrBlank()) {
-                        AsyncImage(
-                            model = pet?.photoUri,
-                            contentDescription = "${pet?.name}'s photo",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.clip(CircleShape)
-                        )
-                    } else {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(pet?.avatarEmoji ?: "🐶", fontSize = 24.sp)
+                Box(modifier = Modifier.weight(1f)) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { dropdownExpanded = true }
+                            .testTag("dog_profile_dropdown_button")
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(38.dp)
+                                ) {
+                                    if (!currentPet.photoUri.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = currentPet.photoUri,
+                                            contentDescription = "${currentPet.name}'s photo",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.clip(CircleShape)
+                                        )
+                                    } else {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(currentPet.avatarEmoji, fontSize = 20.sp)
+                                        }
+                                    }
+                                }
+
+                                Column {
+                                    Text(
+                                        text = "Associate Recording With Dog:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "${currentPet.name} (${currentPet.breed})",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.testTag("selected_dog_profile_label")
+                                    )
+                                }
+                            }
+
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Select Dog Profile Dropdown",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                         }
+                    }
+
+                    DropdownMenu(
+                        expanded = dropdownExpanded,
+                        onDismissRequest = { dropdownExpanded = false },
+                        modifier = Modifier.testTag("dog_profile_dropdown_menu")
+                    ) {
+                        displayProfiles.forEach { pet ->
+                            val isSelected = pet.id == currentPet.id && pet.name == currentPet.name
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text(
+                                            text = "${pet.avatarEmoji} ${pet.name}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                        Text(
+                                            text = "${pet.breed} • ${pet.age} yrs",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                trailingIcon = {
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected dog profile",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                },
+                                onClick = {
+                                    dropdownExpanded = false
+                                    onSelectPet(pet)
+                                },
+                                modifier = Modifier.testTag("dog_profile_dropdown_item_${pet.id}")
+                            )
+                        }
+
+                        HorizontalDivider()
+
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = "+ Add or Manage Dog Profiles",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Pets,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                dropdownExpanded = false
+                                onManageProfiles()
+                            },
+                            modifier = Modifier.testTag("dropdown_manage_dogs_item")
+                        )
                     }
                 }
 
-                Column {
-                    Text(
-                        text = "Recording Target: ${pet?.name ?: "Barnaby"}",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        text = "${pet?.breed ?: "Golden Retriever"} • Profile Calibrated",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                    )
+                Spacer(Modifier.width(8.dp))
+
+                TextButton(
+                    onClick = onManageProfiles,
+                    modifier = Modifier.testTag("switch_target_dog_button")
+                ) {
+                    Text("Manage", style = MaterialTheme.typography.labelSmall)
                 }
             }
 
-            TextButton(
-                onClick = onSwitchPet,
-                modifier = Modifier.testTag("switch_target_dog_button")
-            ) {
-                Text("Switch Dog", style = MaterialTheme.typography.labelSmall)
+            // Bottom Row: Quick Selection Chips for each Dog Profile
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "Quick-Select Dog Profile:",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                )
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("dog_profile_chips_row")
+                ) {
+                    items(displayProfiles, key = { "${it.id}_${it.name}" }) { pet ->
+                        val isSelected = pet.id == currentPet.id && pet.name == currentPet.name
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { onSelectPet(pet) },
+                            label = {
+                                Text(
+                                    text = "${pet.avatarEmoji} ${pet.name}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            leadingIcon = if (isSelected) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            } else null,
+                            modifier = Modifier.testTag("dog_profile_chip_${pet.id}")
+                        )
+                    }
+                }
             }
         }
     }
@@ -569,6 +788,7 @@ fun PreparedAudioAnalysisCard(
     onStop: () -> Unit,
     onAnalyzeWithAi: () -> Unit,
     onReRecord: () -> Unit,
+    associatedPet: PetProfile? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -620,6 +840,29 @@ fun PreparedAudioAnalysisCard(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+
+            // Associated Dog Profile Badge
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("associated_dog_profile_badge")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(associatedPet?.avatarEmoji ?: "🐶", fontSize = 16.sp)
+                    Text(
+                        text = "Associated Dog Profile: ${associatedPet?.name ?: "Barnaby"} (${associatedPet?.breed ?: "Golden Retriever"})",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
             }

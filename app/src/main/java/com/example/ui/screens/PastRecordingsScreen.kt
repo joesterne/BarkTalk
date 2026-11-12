@@ -67,6 +67,8 @@ import com.example.data.TranslationLog
 import com.example.ui.BarkTalkViewModel
 import com.example.ui.components.PdfExportDialog
 import com.example.ui.components.ShareTranslationDialog
+import com.example.ui.components.WeeklyBarkFrequencyCalculator
+import com.example.ui.components.WeeklyBarkFrequencyChart
 import com.example.util.BarkHistoryPdfExporter.toTranslationLog
 import java.io.File
 import java.text.SimpleDateFormat
@@ -126,9 +128,14 @@ fun PastRecordingsListContent(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("All") }
+    var showWeeklyChart by remember { mutableStateOf(false) }
     var showClearConfirmDialog by remember { mutableStateOf(false) }
     var showPdfExportDialog by remember { mutableStateOf(false) }
     var shareTargetBark by remember { mutableStateOf<RecordedBark?>(null) }
+
+    val weeklyBuckets = remember(recordings) {
+        WeeklyBarkFrequencyCalculator.computeLast7DaysFromRecordings(recordings)
+    }
 
     val filteredRecordings = remember(recordings, searchQuery, selectedFilter) {
         recordings
@@ -308,6 +315,20 @@ fun PastRecordingsListContent(
                     modifier = Modifier.testTag("recordings_filter_urgent")
                 )
             }
+            item {
+                FilterChip(
+                    selected = showWeeklyChart,
+                    onClick = { showWeeklyChart = !showWeeklyChart },
+                    label = { Text("📊 7-Day Chart") },
+                    modifier = Modifier.testTag("recordings_toggle_chart_chip")
+                )
+            }
+        }
+
+        if (showWeeklyChart) {
+            WeeklyBarkFrequencyChart(
+                buckets = weeklyBuckets
+            )
         }
 
         // Recordings List or Empty State

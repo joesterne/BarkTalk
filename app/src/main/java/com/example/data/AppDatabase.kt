@@ -171,7 +171,7 @@ abstract class AppDatabase : RoomDatabase() {
                                 petId = petId1,
                                 petName = "Barnaby",
                                 petBreed = "Golden Retriever",
-                                timestamp = System.currentTimeMillis() - 1000 * 60 * 18,
+                                timestamp = System.currentTimeMillis() - 1000L * 60 * 18,
                                 translation = "Squirrel! Alert! Fluffy-tailed intruder perched upon the cedar fence!",
                                 durationSeconds = 2.1f,
                                 peakDb = 78,
@@ -190,7 +190,7 @@ abstract class AppDatabase : RoomDatabase() {
                                 petId = petId1,
                                 petName = "Barnaby",
                                 petBreed = "Golden Retriever",
-                                timestamp = System.currentTimeMillis() - 1000 * 60 * 120,
+                                timestamp = System.currentTimeMillis() - 1000L * 60 * 120,
                                 translation = "Did you just touch the treat cupboard door? You definitely did!",
                                 durationSeconds = 1.6f,
                                 peakDb = 62,
@@ -204,6 +204,57 @@ abstract class AppDatabase : RoomDatabase() {
                                 isFavorite = false
                             )
                         )
+
+                        // Seed historical barks across the last 7 days for rich 7-day bar chart analytics
+                        val dayMs = 24L * 60 * 60 * 1000L
+                        val multiDaySeeds = listOf(
+                            Triple(1, "Mail carrier is at the front gate!", "HIGH"),
+                            Triple(2, "Throw the tennis ball! I'm ready to sprint!", "LOW"),
+                            Triple(2, "Can we go for our evening walk in the park?", "MEDIUM"),
+                            Triple(3, "Strange cat spotted near the garden hedge!", "HIGH"),
+                            Triple(5, "My water bowl is getting low, human!", "MEDIUM"),
+                            Triple(6, "Welcome home! I missed you all afternoon!", "LOW")
+                        )
+                        multiDaySeeds.forEachIndexed { idx, (daysAgo, translationText, urgency) ->
+                            val seedTs = System.currentTimeMillis() - (daysAgo * dayMs) - (idx * 3600_000L)
+                            logDao.insertLog(
+                                TranslationLog(
+                                    petId = petId1,
+                                    petName = "Barnaby",
+                                    petBreed = "Golden Retriever",
+                                    timestamp = seedTs,
+                                    vocalizationType = if (urgency == "HIGH") "Rapid Alarm Bark" else "Playful Greeting Bark",
+                                    dominantPitchHz = if (urgency == "HIGH") 510 else 440,
+                                    intensityDb = if (urgency == "HIGH") 81 else 68,
+                                    cadenceDescription = "Rhythmic canine vocalization",
+                                    englishTranslation = translationText,
+                                    dogThought = "Communicating daily canine priorities clearly.",
+                                    detectedEmotion = if (urgency == "HIGH") "Alert & Vigilant" else "Happy & Social",
+                                    urgencyLevel = urgency,
+                                    confidencePercent = 95,
+                                    recommendedAction = "Respond with calm attention.",
+                                    canineSubtext = "Recorded during 7-day acoustic baseline."
+                                )
+                            )
+                            recordedBarkDao.insertRecordedBark(
+                                RecordedBark(
+                                    petId = petId1,
+                                    petName = "Barnaby",
+                                    petBreed = "Golden Retriever",
+                                    timestamp = seedTs,
+                                    translation = translationText,
+                                    durationSeconds = 1.9f,
+                                    peakDb = if (urgency == "HIGH") 81 else 68,
+                                    dominantPitchHz = if (urgency == "HIGH") 510 else 440,
+                                    vocalizationType = if (urgency == "HIGH") "Rapid Alarm Bark" else "Playful Greeting Bark",
+                                    cadenceDescription = "Rhythmic canine vocalization",
+                                    detectedEmotion = if (urgency == "HIGH") "Alert & Vigilant" else "Happy & Social",
+                                    dogThought = "Communicating daily canine priorities clearly.",
+                                    urgencyLevel = urgency,
+                                    confidencePercent = 95
+                                )
+                            )
+                        }
                     }
                 }
             }

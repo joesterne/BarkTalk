@@ -123,10 +123,17 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
         return sample
     }
 
-    fun submitPreparedSampleForAnalysis(sample: com.example.audio.RecordedBarkSample) {
+    fun submitPreparedSampleForAnalysis(
+        sample: com.example.audio.RecordedBarkSample,
+        targetPet: PetProfile? = null
+    ) {
+        if (targetPet != null && targetPet.id > 0L) {
+            selectPet(targetPet.id)
+        }
         translateVocalization(
             analysis = sample.acousticAnalysis,
-            audioFilePath = sample.audioFile.absolutePath
+            audioFilePath = sample.audioFile.absolutePath,
+            overridePet = targetPet
         )
     }
 
@@ -143,8 +150,12 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
         barkAudioPlayer.stop()
     }
 
-    fun translateVocalization(analysis: AcousticAnalysis, audioFilePath: String? = null) {
-        val currentPet = selectedPet.value ?: petProfiles.value.firstOrNull() ?: PetProfile(
+    fun translateVocalization(
+        analysis: AcousticAnalysis,
+        audioFilePath: String? = null,
+        overridePet: PetProfile? = null
+    ) {
+        val currentPet = overridePet ?: selectedPet.value ?: petProfiles.value.firstOrNull() ?: PetProfile(
             name = "Barnaby",
             breed = "Golden Retriever",
             ageYears = 3,

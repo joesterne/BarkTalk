@@ -94,6 +94,8 @@ import com.example.data.TranslationLog
 import com.example.ui.BarkTalkViewModel
 import com.example.ui.components.DogSoundboardGridCard
 import com.example.ui.components.ShareTranslationDialog
+import com.example.ui.components.WeeklyBarkFrequencyCalculator
+import com.example.ui.components.WeeklyBarkFrequencyChart
 import com.example.util.SocialShareHelper
 
 @Composable
@@ -123,6 +125,15 @@ fun TranslateScreen(
     val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsState()
     val currentlyPlayingSoundId by viewModel.currentlyPlayingSoundId.collectAsState()
     val lastPlayedSound by viewModel.lastPlayedSound.collectAsState()
+    val translationLogs by viewModel.translationLogs.collectAsState()
+    val recordedBarks by viewModel.recordedBarks.collectAsState()
+
+    val weeklyBuckets = remember(translationLogs, recordedBarks) {
+        WeeklyBarkFrequencyCalculator.computeLast7DaysCombined(
+            logs = translationLogs,
+            recordings = recordedBarks
+        )
+    }
 
     var captureMode by remember { mutableStateOf("MediaRecorder") } // "MediaRecorder" or "ContinuousRadar"
     var shareDialogLog by remember { mutableStateOf<TranslationLog?>(null) }
@@ -899,6 +910,13 @@ fun TranslateScreen(
 
                 else -> {}
             }
+        }
+
+        // 4.4 7-Day Bark Translation Frequency Data Visualization (Recharts/D3-style Bar Chart)
+        item {
+            WeeklyBarkFrequencyChart(
+                buckets = weeklyBuckets
+            )
         }
 
         // 4.5 Grid-Based Canine Soundboard UI in the Main Compose Layout

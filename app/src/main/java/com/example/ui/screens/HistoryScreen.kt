@@ -55,6 +55,8 @@ import com.example.data.TranslationLog
 import com.example.ui.BarkTalkViewModel
 import com.example.ui.components.PdfExportDialog
 import com.example.ui.components.ShareTranslationDialog
+import com.example.ui.components.WeeklyBarkFrequencyCalculator
+import com.example.ui.components.WeeklyBarkFrequencyChart
 import com.example.util.BarkHistoryPdfExporter.toTranslationLog
 import com.example.util.SocialShareHelper
 import java.text.SimpleDateFormat
@@ -85,6 +87,13 @@ fun HistoryScreen(
     }
 
     val dateFormatter = remember { SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()) }
+
+    val weeklyBuckets = remember(allLogs, recordedBarks) {
+        WeeklyBarkFrequencyCalculator.computeLast7DaysCombined(
+            logs = allLogs,
+            recordings = recordedBarks
+        )
+    }
 
     val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsState()
 
@@ -240,6 +249,12 @@ fun HistoryScreen(
                 contentPadding = PaddingValues(bottom = 16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                item(key = "weekly_bark_chart_header") {
+                    WeeklyBarkFrequencyChart(
+                        buckets = weeklyBuckets
+                    )
+                }
+
                 items(filteredLogs, key = { it.id }) { log ->
                     val isPlayingBark = !log.audioFilePath.isNullOrBlank() && currentlyPlayingBarkPath == log.audioFilePath
                     HistoryCard(

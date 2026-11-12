@@ -380,5 +380,105 @@ class ExampleUnitTest {
         val header = String(pdfBytes.copyOfRange(0, 5), Charsets.US_ASCII)
         assertEquals("%PDF-", header)
     }
+
+    @Test
+    fun testWeeklyBarkFrequencyCalculator_aggregatesLast7Days() {
+        val now = 1731420000000L // Reference timestamp
+        val oneDayMs = 24L * 60 * 60 * 1000L
+
+        val logs = listOf(
+            com.example.data.TranslationLog(
+                id = 1L,
+                petId = 1L,
+                petName = "Barnaby",
+                petBreed = "Golden Retriever",
+                timestamp = now - 3600_000L, // Today
+                vocalizationType = "Rapid Alarm Bark",
+                dominantPitchHz = 510,
+                intensityDb = 82,
+                cadenceDescription = "Rapid",
+                englishTranslation = "Doorbell alert!",
+                dogThought = "Visitor arrived",
+                detectedEmotion = "Alert",
+                urgencyLevel = "HIGH",
+                confidencePercent = 95,
+                recommendedAction = "Check door",
+                canineSubtext = "Alert"
+            ),
+            com.example.data.TranslationLog(
+                id = 2L,
+                petId = 1L,
+                petName = "Barnaby",
+                petBreed = "Golden Retriever",
+                timestamp = now - 7200_000L, // Today
+                vocalizationType = "Playful Yip",
+                dominantPitchHz = 600,
+                intensityDb = 68,
+                cadenceDescription = "Playful",
+                englishTranslation = "Throw the ball!",
+                dogThought = "Fetch time",
+                detectedEmotion = "Playful",
+                urgencyLevel = "LOW",
+                confidencePercent = 97,
+                recommendedAction = "Play fetch",
+                canineSubtext = "Play"
+            ),
+            com.example.data.TranslationLog(
+                id = 3L,
+                petId = 1L,
+                petName = "Barnaby",
+                petBreed = "Golden Retriever",
+                timestamp = now - (2 * oneDayMs), // 2 days ago
+                vocalizationType = "Mournful Howl",
+                dominantPitchHz = 360,
+                intensityDb = 75,
+                cadenceDescription = "Sustained",
+                englishTranslation = "Siren song!",
+                dogThought = "Pack call",
+                detectedEmotion = "Curious",
+                urgencyLevel = "MEDIUM",
+                confidencePercent = 92,
+                recommendedAction = "Reassure",
+                canineSubtext = "Howl"
+            ),
+            com.example.data.TranslationLog(
+                id = 4L,
+                petId = 1L,
+                petName = "Barnaby",
+                petBreed = "Golden Retriever",
+                timestamp = now - (10 * oneDayMs), // 10 days ago (outside 7-day window)
+                vocalizationType = "Old Bark",
+                dominantPitchHz = 400,
+                intensityDb = 70,
+                cadenceDescription = "Single",
+                englishTranslation = "Old bark",
+                dogThought = "Old thought",
+                detectedEmotion = "Calm",
+                urgencyLevel = "LOW",
+                confidencePercent = 90,
+                recommendedAction = "None",
+                canineSubtext = "Old"
+            )
+        )
+
+        val buckets = com.example.ui.components.WeeklyBarkFrequencyCalculator.computeLast7DaysFromLogs(
+            logs = logs,
+            referenceTimeMillis = now
+        )
+
+        assertEquals(7, buckets.size)
+        assertEquals(3, buckets.sumOf { it.totalCount })
+
+        val todayBucket = buckets.last()
+        assertTrue(todayBucket.isToday)
+        assertEquals(2, todayBucket.totalCount)
+        assertEquals(1, todayBucket.highUrgencyCount)
+        assertEquals(1, todayBucket.standardCount)
+        assertEquals(75, todayBucket.averageDb)
+
+        val twoDaysAgoBucket = buckets[4]
+        assertEquals(1, twoDaysAgoBucket.totalCount)
+        assertEquals("Mournful Howl", twoDaysAgoBucket.dominantVocalization)
+    }
 }
 
