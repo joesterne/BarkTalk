@@ -97,6 +97,8 @@ import com.example.audio.RecordedBarkSample
 import com.example.data.PetProfile
 import com.example.data.RecordedBark
 import com.example.ui.BarkTalkViewModel
+import com.example.ui.components.DailyBarkGoalCard
+import com.example.ui.components.WeeklyBarkFrequencyCalculator
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -125,6 +127,15 @@ fun RecordBarkScreen(
     val lastRecordedSample by viewModel.lastRecordedSample.collectAsState()
     val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsState()
     val recordedBarks by viewModel.recordedBarks.collectAsState()
+    val translationLogs by viewModel.translationLogs.collectAsState()
+    val dailyBarkGoal by viewModel.dailyBarkGoal.collectAsState()
+
+    val todayAnalyzedCount = remember(translationLogs, recordedBarks) {
+        WeeklyBarkFrequencyCalculator.computeLast7DaysCombined(
+            logs = translationLogs,
+            recordings = recordedBarks
+        ).lastOrNull()?.totalCount ?: 0
+    }
 
     // Local selection state synced with Room's selectedPet so selecting a chip/dropdown item
     // immediately updates the recording's associated dog profile
@@ -191,6 +202,13 @@ fun RecordBarkScreen(
                 }
             },
             onManageProfiles = onNavigateToProfiles
+        )
+
+        // Daily Bark Analysis Goal & Progress Bar
+        DailyBarkGoalCard(
+            todayAnalyzedCount = todayAnalyzedCount,
+            dailyGoal = dailyBarkGoal,
+            onUpdateDailyGoal = { newGoal -> viewModel.setDailyBarkGoal(newGoal) }
         )
 
         if (!hasMicPermission) {

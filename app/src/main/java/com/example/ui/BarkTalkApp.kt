@@ -49,20 +49,27 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.IconButton
+import androidx.compose.ui.platform.LocalContext
 import com.example.R
+import com.example.ui.screens.FavoritesScreen
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.PastRecordingsScreen
 import com.example.ui.screens.PetProfilesScreen
 import com.example.ui.screens.RecordBarkScreen
 import com.example.ui.screens.SoundboardScreen
 import com.example.ui.screens.TranslateScreen
+import com.example.util.BarkHistoryPdfExporter.toTranslationLog
+import com.example.util.SocialShareHelper
 import com.example.widget.BarkTalkWidgetProvider
 import kotlinx.coroutines.flow.StateFlow
 
 enum class BarkNavTab(val title: String) {
     RECORD("Record"),
     TRANSLATE("Translate"),
+    FAVORITES("Favorites"),
     SOUNDBOARD("Soundboard"),
     HISTORY("History"),
     PROFILES("Dogs")
@@ -75,9 +82,12 @@ fun BarkTalkApp(
     intentFlow: StateFlow<Intent?>? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var currentTab by remember { mutableStateOf(BarkNavTab.TRANSLATE) }
     var showPastRecordings by remember { mutableStateOf(false) }
     val selectedPet by viewModel.selectedPet.collectAsState()
+    val translationLogs by viewModel.translationLogs.collectAsState()
+    val recordedBarks by viewModel.recordedBarks.collectAsState()
     val incomingIntent by intentFlow?.collectAsState() ?: remember { mutableStateOf(null) }
 
     LaunchedEffect(incomingIntent) {
@@ -141,6 +151,20 @@ fun BarkTalkApp(
                 },
                 actions = {
                     IconButton(
+                        onClick = {
+                            val latest = translationLogs.firstOrNull()
+                                ?: recordedBarks.firstOrNull()?.toTranslationLog()
+                            SocialShareHelper.quickShareLatestTranslation(context, latest)
+                        },
+                        modifier = Modifier.testTag("top_bar_quick_share_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Quick Share Latest Bark Translation",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(
                         onClick = { showPastRecordings = !showPastRecordings },
                         modifier = Modifier.testTag("open_past_recordings_button")
                     ) {
@@ -168,7 +192,7 @@ fun BarkTalkApp(
                         currentTab = BarkNavTab.RECORD
                     },
                     icon = { Icon(Icons.Default.Mic, contentDescription = "Record Studio") },
-                    label = { Text("Record") },
+                    label = { Text("Record", maxLines = 1) },
                     modifier = Modifier.testTag("nav_tab_record")
                 )
                 NavigationBarItem(
@@ -178,8 +202,18 @@ fun BarkTalkApp(
                         currentTab = BarkNavTab.TRANSLATE
                     },
                     icon = { Icon(Icons.Default.Hearing, contentDescription = "Translate") },
-                    label = { Text("Translate") },
+                    label = { Text("Translate", maxLines = 1) },
                     modifier = Modifier.testTag("nav_tab_translate")
+                )
+                NavigationBarItem(
+                    selected = !showPastRecordings && currentTab == BarkNavTab.FAVORITES,
+                    onClick = {
+                        showPastRecordings = false
+                        currentTab = BarkNavTab.FAVORITES
+                    },
+                    icon = { Icon(Icons.Default.Star, contentDescription = "Favorites") },
+                    label = { Text("Favorites", maxLines = 1) },
+                    modifier = Modifier.testTag("nav_tab_favorites")
                 )
                 NavigationBarItem(
                     selected = !showPastRecordings && currentTab == BarkNavTab.SOUNDBOARD,
@@ -188,7 +222,7 @@ fun BarkTalkApp(
                         currentTab = BarkNavTab.SOUNDBOARD
                     },
                     icon = { Icon(Icons.Default.VolumeUp, contentDescription = "Soundboard") },
-                    label = { Text("Soundboard") },
+                    label = { Text("Sounds", maxLines = 1) },
                     modifier = Modifier.testTag("nav_tab_soundboard")
                 )
                 NavigationBarItem(
@@ -198,7 +232,7 @@ fun BarkTalkApp(
                         currentTab = BarkNavTab.HISTORY
                     },
                     icon = { Icon(Icons.Default.History, contentDescription = "History") },
-                    label = { Text("History") },
+                    label = { Text("History", maxLines = 1) },
                     modifier = Modifier.testTag("nav_tab_history")
                 )
                 NavigationBarItem(
@@ -208,7 +242,7 @@ fun BarkTalkApp(
                         currentTab = BarkNavTab.PROFILES
                     },
                     icon = { Icon(Icons.Default.Pets, contentDescription = "Dogs") },
-                    label = { Text("Dogs") },
+                    label = { Text("Dogs", maxLines = 1) },
                     modifier = Modifier.testTag("nav_tab_profiles")
                 )
             }
@@ -244,6 +278,12 @@ fun BarkTalkApp(
                             onNavigateToProfiles = { currentTab = BarkNavTab.PROFILES },
                             onNavigateToRecord = { currentTab = BarkNavTab.RECORD },
                             onNavigateToSoundboard = { currentTab = BarkNavTab.SOUNDBOARD }
+                        )
+                    }
+                    BarkNavTab.FAVORITES -> {
+                        FavoritesScreen(
+                            viewModel = viewModel,
+                            onNavigateToTranslate = { currentTab = BarkNavTab.TRANSLATE }
                         )
                     }
                     BarkNavTab.SOUNDBOARD -> {

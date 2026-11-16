@@ -110,14 +110,13 @@ object SocialShareHelper {
     }
 
     /**
-     * Launches Android's native ShareSheet Intent (Intent.ACTION_SEND + Intent.createChooser)
-     * allowing the user to select any messaging or social app (SMS, WhatsApp, Telegram, etc.).
+     * Constructs the ACTION_SEND Intent wrapped in a chooser for sharing a bark translation
+     * via social media or messaging apps.
      */
-    fun shareTranslation(
-        context: Context,
+    fun createShareIntent(
         log: TranslationLog,
         format: ShareFormat = ShareFormat.CONCISE
-    ) {
+    ): Intent {
         val snippetText = buildShareSnippet(log, format)
         val subjectTitle = "🐶 ${log.petName}'s Dog Translation"
 
@@ -128,18 +127,45 @@ object SocialShareHelper {
         }
 
         val chooserTitle = "Share ${log.petName}'s Translation to..."
-        val chooserIntent = Intent.createChooser(sendIntent, chooserTitle).apply {
+        return Intent.createChooser(sendIntent, chooserTitle).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 putExtra(Intent.EXTRA_TITLE, subjectTitle)
             }
         }
+    }
 
+    /**
+     * Launches Android's native ShareSheet Intent (Intent.ACTION_SEND + Intent.createChooser)
+     * allowing the user to select any messaging or social app (SMS, WhatsApp, Telegram, etc.).
+     */
+    fun shareTranslation(
+        context: Context,
+        log: TranslationLog,
+        format: ShareFormat = ShareFormat.CONCISE
+    ): Intent {
+        val chooserIntent = createShareIntent(log, format)
         try {
             context.startActivity(chooserIntent)
         } catch (e: Exception) {
             Toast.makeText(context, "No messaging app found to share snippet", Toast.LENGTH_SHORT).show()
         }
+        return chooserIntent
+    }
+
+    /**
+     * Quickly shares the latest bark translation in one tap via Android's ShareSheet Intent.
+     */
+    fun quickShareLatestTranslation(
+        context: Context,
+        latestLog: TranslationLog?,
+        format: ShareFormat = ShareFormat.CONCISE
+    ): Intent? {
+        if (latestLog == null) {
+            Toast.makeText(context, "Record or simulate a bark first to share!", Toast.LENGTH_SHORT).show()
+            return null
+        }
+        return shareTranslation(context, latestLog, format)
     }
 
     /**
@@ -162,3 +188,4 @@ object SocialShareHelper {
         }
     }
 }
+

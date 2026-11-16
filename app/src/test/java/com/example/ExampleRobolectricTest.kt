@@ -419,4 +419,158 @@ class ExampleRobolectricTest {
     assertEquals("Zeus", selectedProfile?.name)
     assertEquals("German Shepherd", selectedProfile?.breed)
   }
+
+  @Test
+  fun `daily bark goal card displays progress bar and updates goal target`() {
+    var currentGoal = 5
+
+    composeTestRule.setContent {
+      val goalState = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(currentGoal)
+      }
+      BarkTalkTheme {
+        com.example.ui.components.DailyBarkGoalCard(
+          todayAnalyzedCount = 3,
+          dailyGoal = goalState.value,
+          onUpdateDailyGoal = { newGoal ->
+            goalState.value = newGoal
+            currentGoal = newGoal
+          }
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag("daily_bark_goal_card").assertExists()
+    composeTestRule.onNodeWithTag("daily_bark_goal_progress_bar").assertExists()
+    composeTestRule.onNodeWithTag("daily_bark_goal_progress_text").assertExists()
+    composeTestRule.onNodeWithTag("daily_bark_goal_percent_badge").assertExists()
+
+    // Select the 10/day preset chip
+    composeTestRule.onNodeWithTag("daily_goal_preset_10").assertExists().performClick()
+    assertEquals(10, currentGoal)
+
+    // Increment by 1 using the + button
+    composeTestRule.onNodeWithTag("increase_daily_goal_button").assertExists().performClick()
+    assertEquals(11, currentGoal)
+  }
+
+  @Test
+  fun `latest bark quick share card and intent share latest translation`() {
+    val latestLog = TranslationLog(
+      id = 501L,
+      petId = 1L,
+      petName = "Barnaby",
+      petBreed = "Golden Retriever",
+      vocalizationType = "Playful Yip",
+      dominantPitchHz = 600,
+      intensityDb = 74,
+      cadenceDescription = "2 joyful yips",
+      englishTranslation = "Take me to the dog park right now!",
+      dogThought = "Zoomies incoming.",
+      detectedEmotion = "Excited & Playful",
+      urgencyLevel = "MEDIUM",
+      confidencePercent = 97,
+      recommendedAction = "Grab the leash",
+      canineSubtext = "Social play invitation"
+    )
+
+    val chooserIntent = com.example.util.SocialShareHelper.createShareIntent(latestLog)
+    assertEquals(android.content.Intent.ACTION_CHOOSER, chooserIntent.action)
+    @Suppress("DEPRECATION")
+    val targetIntent = chooserIntent.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)
+    assertNotNull(targetIntent)
+    assertEquals(android.content.Intent.ACTION_SEND, targetIntent?.action)
+    assertEquals("text/plain", targetIntent?.type)
+    val sharedText = targetIntent?.getStringExtra(android.content.Intent.EXTRA_TEXT) ?: ""
+    assertTrue(sharedText.contains("Take me to the dog park right now!"))
+    assertTrue(sharedText.contains("Barnaby"))
+
+    composeTestRule.setContent {
+      BarkTalkTheme {
+        com.example.ui.components.LatestBarkQuickShareCard(
+          latestLog = latestLog,
+          onOpenFormatDialog = {}
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag("latest_bark_quick_share_card").assertExists()
+    composeTestRule.onNodeWithTag("latest_bark_translation_preview_text").assertExists()
+    composeTestRule.onNodeWithTag("quick_share_latest_bark_button").assertExists().performClick()
+  }
+
+  @Test
+  fun `favorites screen displays favorite bark translations and marks recent translations as favorites`() {
+    val initialLogs = listOf(
+      TranslationLog(
+        id = 601L,
+        petId = 1L,
+        petName = "Barnaby",
+        petBreed = "Golden Retriever",
+        vocalizationType = "Rapid Alarm Bark",
+        dominantPitchHz = 510,
+        intensityDb = 82,
+        cadenceDescription = "Rapid bursts",
+        englishTranslation = "Squirrel perched on the garden fence!",
+        dogThought = "Must protect the yard.",
+        detectedEmotion = "Alert",
+        urgencyLevel = "HIGH",
+        confidencePercent = 96,
+        recommendedAction = "Check backyard",
+        canineSubtext = "Territorial alert",
+        isFavorite = true
+      ),
+      TranslationLog(
+        id = 602L,
+        petId = 2L,
+        petName = "Luna",
+        petBreed = "French Bulldog",
+        vocalizationType = "Playful Yip",
+        dominantPitchHz = 640,
+        intensityDb = 66,
+        cadenceDescription = "Short yip",
+        englishTranslation = "Dinner bowl is empty, human!",
+        dogThought = "Feed me immediately.",
+        detectedEmotion = "Playful",
+        urgencyLevel = "LOW",
+        confidencePercent = 98,
+        recommendedAction = "Serve dinner",
+        canineSubtext = "Food solicitation",
+        isFavorite = false
+      )
+    )
+
+    composeTestRule.setContent {
+      val logsState = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(initialLogs)
+      }
+      val favs = logsState.value.filter { it.isFavorite }
+
+      BarkTalkTheme {
+        com.example.ui.screens.FavoritesScreenContent(
+          favoriteLogs = favs,
+          allLogs = logsState.value,
+          onToggleFavorite = { target ->
+            logsState.value = logsState.value.map {
+              if (it.id == target.id) it.copy(isFavorite = !it.isFavorite) else it
+            }
+          }
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag("favorites_screen").assertExists()
+    composeTestRule.onNodeWithTag("favorites_count_badge").assertExists()
+    composeTestRule.onNodeWithTag("favorites_list").assertExists()
+    composeTestRule.onNodeWithTag("favorite_card_601").assertExists()
+    composeTestRule.onNodeWithTag("favorite_translation_text_601").assertExists()
+
+    // Mark log 602 as a favorite using the quick-mark chip on the Favorites screen
+    composeTestRule.onNodeWithTag("quick_mark_favorites_section").assertExists()
+    composeTestRule.onNodeWithTag("mark_as_favorite_chip_602").assertExists().performClick()
+
+    // Scroll to index 1 in the LazyColumn and verify log 602 now appears in the Favorites list
+    composeTestRule.onNodeWithTag("favorites_list").performScrollToIndex(1)
+    composeTestRule.onNodeWithTag("favorite_card_602").assertExists()
+  }
 }

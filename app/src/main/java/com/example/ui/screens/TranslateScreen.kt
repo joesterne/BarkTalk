@@ -92,11 +92,14 @@ import com.example.audio.AudioProcessor
 import com.example.audio.CanineSoundboardPlayer
 import com.example.data.TranslationLog
 import com.example.ui.BarkTalkViewModel
+import com.example.ui.components.DailyBarkGoalCard
 import com.example.ui.components.DogSoundboardGridCard
+import com.example.ui.components.LatestBarkQuickShareCard
 import com.example.ui.components.ShareTranslationDialog
 import com.example.ui.components.WeeklyBarkFrequencyCalculator
 import com.example.ui.components.WeeklyBarkFrequencyChart
 import com.example.util.SocialShareHelper
+import com.example.util.BarkHistoryPdfExporter.toTranslationLog
 
 @Composable
 fun TranslateScreen(
@@ -127,12 +130,41 @@ fun TranslateScreen(
     val lastPlayedSound by viewModel.lastPlayedSound.collectAsState()
     val translationLogs by viewModel.translationLogs.collectAsState()
     val recordedBarks by viewModel.recordedBarks.collectAsState()
+    val dailyBarkGoal by viewModel.dailyBarkGoal.collectAsState()
 
     val weeklyBuckets = remember(translationLogs, recordedBarks) {
         WeeklyBarkFrequencyCalculator.computeLast7DaysCombined(
             logs = translationLogs,
             recordings = recordedBarks
         )
+    }
+
+    val todayAnalyzedCount = remember(weeklyBuckets) {
+        weeklyBuckets.lastOrNull()?.totalCount ?: 0
+    }
+
+    val latestBarkLog = remember(translationState, translationLogs, recordedBarks, selectedPet) {
+        val state = translationState
+        if (state is TranslationState.Success) {
+            TranslationLog(
+                petId = selectedPet?.id ?: 1L,
+                petName = selectedPet?.name ?: "Barnaby",
+                petBreed = selectedPet?.breed ?: "Golden Retriever",
+                vocalizationType = state.analysis.vocalizationType,
+                dominantPitchHz = state.analysis.pitchHz,
+                intensityDb = state.analysis.volumeDb,
+                cadenceDescription = state.analysis.cadenceDescription,
+                englishTranslation = state.result.englishTranslation,
+                dogThought = state.result.dogThought,
+                detectedEmotion = state.result.detectedEmotion,
+                urgencyLevel = state.result.urgencyLevel,
+                confidencePercent = state.result.confidencePercent,
+                recommendedAction = state.result.recommendedAction,
+                canineSubtext = state.result.canineSubtext
+            )
+        } else {
+            translationLogs.firstOrNull() ?: recordedBarks.firstOrNull()?.toTranslationLog()
+        }
     }
 
     var captureMode by remember { mutableStateOf("MediaRecorder") } // "MediaRecorder" or "ContinuousRadar"
@@ -636,18 +668,37 @@ fun TranslateScreen(
                                     )
                                 }
 
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = urgencyColor.copy(alpha = 0.2f),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, urgencyColor)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text(
-                                        text = "🚨 Urgency: ${result.urgencyLevel}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = urgencyColor,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = urgencyColor.copy(alpha = 0.2f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, urgencyColor)
+                                    ) {
+                                        Text(
+                                            text = "🚨 Urgency: ${result.urgencyLevel}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = urgencyColor,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+
+                                    val isCurrentFav = translationLogs.firstOrNull()?.isFavorite == true
+                                    IconButton(
+                                        onClick = { viewModel.toggleLatestTranslationFavorite() },
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .testTag("favorite_latest_translation_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isCurrentFav) Icons.Default.Star else Icons.Outlined.StarBorder,
+                                            contentDescription = if (isCurrentFav) "Remove from favorites" else "Mark translation as favorite",
+                                            tint = if (isCurrentFav) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
 
@@ -817,10 +868,27 @@ fun TranslateScreen(
                                 }
                             }
 
-                            // Action Buttons: Speak (TTS) & Share
+                            // Action Buttons: Speak (TTS), Quick Share Intent, & Format Share
+                            val currentResultLog = TranslationLog(
+                                petId = selectedPet?.id ?: 1,
+                                petName = selectedPet?.name ?: "Barnaby",
+                                petBreed = selectedPet?.breed ?: "Dog",
+                                vocalizationType = analysis.vocalizationType,
+                                dominantPitchHz = analysis.pitchHz,
+                                intensityDb = analysis.volumeDb,
+                                cadenceDescription = analysis.cadenceDescription,
+                                englishTranslation = result.englishTranslation,
+                                dogThought = result.dogThought,
+                                detectedEmotion = result.detectedEmotion,
+                                urgencyLevel = result.urgencyLevel,
+                                confidencePercent = result.confidencePercent,
+                                recommendedAction = result.recommendedAction,
+                                canineSubtext = result.canineSubtext
+                            )
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Button(
                                     onClick = {
@@ -834,40 +902,35 @@ fun TranslateScreen(
                                     )
                                 ) {
                                     Icon(Icons.Default.VolumeUp, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Speak Voice")
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Speak")
                                 }
 
                                 Button(
                                     onClick = {
-                                        val tempLog = TranslationLog(
-                                            petId = selectedPet?.id ?: 1,
-                                            petName = selectedPet?.name ?: "Barnaby",
-                                            petBreed = selectedPet?.breed ?: "Dog",
-                                            vocalizationType = analysis.vocalizationType,
-                                            dominantPitchHz = analysis.pitchHz,
-                                            intensityDb = analysis.volumeDb,
-                                            cadenceDescription = analysis.cadenceDescription,
-                                            englishTranslation = result.englishTranslation,
-                                            dogThought = result.dogThought,
-                                            detectedEmotion = result.detectedEmotion,
-                                            urgencyLevel = result.urgencyLevel,
-                                            confidencePercent = result.confidencePercent,
-                                            recommendedAction = result.recommendedAction,
-                                            canineSubtext = result.canineSubtext
-                                        )
-                                        shareDialogLog = tempLog
+                                        SocialShareHelper.quickShareLatestTranslation(context, currentResultLog)
                                     },
                                     modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("share_translation_button"),
+                                        .weight(1.2f)
+                                        .testTag("quick_share_latest_button"),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.primary
                                     )
                                 ) {
                                     Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Share")
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Quick Share")
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        shareDialogLog = currentResultLog
+                                    },
+                                    modifier = Modifier
+                                        .weight(0.9f)
+                                        .testTag("share_translation_button")
+                                ) {
+                                    Text("Formats")
                                 }
                             }
                         }
@@ -909,6 +972,32 @@ fun TranslateScreen(
                 }
 
                 else -> {}
+            }
+        }
+
+        // 4.2 Daily Bark Analysis Goal & Progress Bar
+        item {
+            DailyBarkGoalCard(
+                todayAnalyzedCount = todayAnalyzedCount,
+                dailyGoal = dailyBarkGoal,
+                onUpdateDailyGoal = { newGoal -> viewModel.setDailyBarkGoal(newGoal) }
+            )
+        }
+
+        // 4.3 Quick Share Latest Bark Translation Card
+        if (latestBarkLog != null) {
+            item {
+                LatestBarkQuickShareCard(
+                    latestLog = latestBarkLog,
+                    onOpenFormatDialog = { log -> shareDialogLog = log },
+                    onToggleFavorite = { log ->
+                        if (log.id > 0L) {
+                            viewModel.toggleFavorite(log)
+                        } else {
+                            viewModel.toggleLatestTranslationFavorite()
+                        }
+                    }
+                )
             }
         }
 

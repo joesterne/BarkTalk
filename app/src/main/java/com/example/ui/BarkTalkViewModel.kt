@@ -49,8 +49,17 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
     val translationLogs: StateFlow<List<TranslationLog>> = translationRepository.allTranslations
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val favoriteTranslations: StateFlow<List<TranslationLog>> = translationRepository.favoriteTranslations
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val recordedBarks: StateFlow<List<com.example.data.RecordedBark>> = recordedBarkRepository.allRecordedBarks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val favoriteRecordedBarks: StateFlow<List<com.example.data.RecordedBark>> = recordedBarkRepository.favoriteRecordedBarks
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _lastTranslatedLogId = MutableStateFlow<Long?>(null)
+    val lastTranslatedLogId: StateFlow<Long?> = _lastTranslatedLogId.asStateFlow()
 
     val isListening: StateFlow<Boolean> = audioProcessor.isRecording
     val liveVolumeDb: StateFlow<Float> = audioProcessor.liveVolumeDb
@@ -73,11 +82,22 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
     private val _translationState = MutableStateFlow<TranslationState>(TranslationState.Idle)
     val translationState: StateFlow<TranslationState> = _translationState.asStateFlow()
 
+    private val prefs = application.getSharedPreferences("barktalk_prefs", android.content.Context.MODE_PRIVATE)
+
+    private val _dailyBarkGoal = MutableStateFlow(prefs.getInt("daily_bark_goal", 5).coerceIn(1, 50))
+    val dailyBarkGoal: StateFlow<Int> = _dailyBarkGoal.asStateFlow()
+
     private val _autoSpeakTranslations = MutableStateFlow(true)
     val autoSpeakTranslations: StateFlow<Boolean> = _autoSpeakTranslations.asStateFlow()
 
     private val _notifyHighUrgency = MutableStateFlow(true)
     val notifyHighUrgency: StateFlow<Boolean> = _notifyHighUrgency.asStateFlow()
+
+    fun setDailyBarkGoal(goal: Int) {
+        val clamped = goal.coerceIn(1, 50)
+        _dailyBarkGoal.value = clamped
+        prefs.edit().putInt("daily_bark_goal", clamped).apply()
+    }
 
     fun toggleAutoSpeak() {
         _autoSpeakTranslations.value = !_autoSpeakTranslations.value
@@ -190,6 +210,7 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
                     audioFilePath = audioFilePath
                 )
                 val logId = translationRepository.insertTranslation(newLog)
+                _lastTranslatedLogId.value = logId
 
                 // Also persist to RecordedBark Room table with timestamp and AI-generated translation
                 val recordedDuration = _lastRecordedSample.value?.durationSeconds ?: 1.8f
@@ -257,7 +278,26 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
 
     fun toggleFavorite(log: TranslationLog) {
         viewModelScope.launch {
-            translationRepository.setFavorite(log.id, !log.isFavorite)
+            val newFavorite = !log.isFavorite
+            translationRepository.setFavorite(log.id, newFavorite)
+            // Keep companion RecordedBark table in sync if a matching timestamp exists
+            recordedBarks.value
+                .filter { kotlin.math.abs(it.timestamp - log.timestamp) <= 2000L }
+                .forEach { matchingBark ->
+                    recordedBarkRepository.setFavorite(matchingBark.id, newFavorite)
+                }
+        }
+    }
+
+    fun toggleLatestTranslationFavorite() {
+        val targetId = _lastTranslatedLogId.value
+        val targetLog = if (targetId != null) {
+            translationLogs.value.find { it.id == targetId }
+        } else {
+            translationLogs.value.firstOrNull()
+        }
+        if (targetLog != null) {
+            toggleFavorite(targetLog)
         }
     }
 
@@ -276,7 +316,13 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
 
     fun toggleRecordedBarkFavorite(bark: com.example.data.RecordedBark) {
         viewModelScope.launch {
-            recordedBarkRepository.setFavorite(bark.id, !bark.isFavorite)
+            val newFavorite = !bark.isFavorite
+            recordedBarkRepository.setFavorite(bark.id, newFavorite)
+            translationLogs.value
+                .filter { kotlin.math.abs(it.timestamp - bark.timestamp) <= 2000L }
+                .forEach { matchingLog ->
+                    translationRepository.setFavorite(matchingLog.id, newFavorite)
+                }
         }
     }
 
