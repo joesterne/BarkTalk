@@ -3,8 +3,11 @@ package com.example.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
+import com.example.ai.AvatarGenerationState
 import com.example.ai.DogAiTranslator
 import com.example.ai.DogTranslationResult
+import com.example.ai.PetAvatarGenerator
 import com.example.ai.TranslationState
 import com.example.audio.AcousticAnalysis
 import com.example.audio.AudioProcessor
@@ -16,34 +19,35 @@ import com.example.data.TranslationLog
 import com.example.util.CanineTtsPlayer
 import com.example.util.NotificationHelper
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class BarkTalkViewModel(application: Application) : AndroidViewModel(application) {
 
     private val database = AppDatabase.getDatabase(application)
-    private val petDao = database.petProfileDao()
-    private val translationDao = database.translationDao()
-    private val recordedBarkDao = database.recordedBarkDao()
-    val translationRepository = com.example.data.TranslationRepository(translationDao)
-    val recordedBarkRepository = com.example.data.RecordedBarkRepository(recordedBarkDao)
+    val petProfileRepository = com.example.data.PetProfileRepository(database.petProfileDao())
+    val translationRepository = com.example.data.TranslationRepository(database.translationDao())
+    val recordedBarkRepository = com.example.data.RecordedBarkRepository(database.recordedBarkDao())
 
     private val audioProcessor = AudioProcessor()
     private val soundboardPlayer = CanineSoundboardPlayer()
     private val barkMediaRecorder = com.example.audio.BarkMediaRecorder(application)
     private val barkAudioPlayer = com.example.audio.BarkAudioPlayer()
     private val dogAiTranslator = DogAiTranslator()
+    private val petAvatarGenerator = PetAvatarGenerator()
     private val notificationHelper = NotificationHelper(application)
     private val ttsPlayer = CanineTtsPlayer(application)
 
-    val petProfiles: StateFlow<List<PetProfile>> = petDao.getAllProfiles()
+    val petProfiles: StateFlow<List<PetProfile>> = petProfileRepository.allProfiles
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val selectedPet: StateFlow<PetProfile?> = petDao.getSelectedProfile()
+    val selectedPet: StateFlow<PetProfile?> = petProfileRepository.selectedProfile
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val translationLogs: StateFlow<List<TranslationLog>> = translationRepository.allTranslations
@@ -81,6 +85,9 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
 
     private val _translationState = MutableStateFlow<TranslationState>(TranslationState.Idle)
     val translationState: StateFlow<TranslationState> = _translationState.asStateFlow()
+
+    private val _avatarGenState = MutableStateFlow<AvatarGenerationState>(AvatarGenerationState.Idle)
+    val avatarGenState: StateFlow<AvatarGenerationState> = _avatarGenState.asStateFlow()
 
     private val prefs = application.getSharedPreferences("barktalk_prefs", android.content.Context.MODE_PRIVATE)
 
@@ -336,36 +343,28 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
 
     fun selectPet(petId: Long) {
         viewModelScope.launch {
-            petDao.clearSelection()
-            petDao.selectProfile(petId)
+            petProfileRepository.selectProfile(petId)
             com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(getApplication())
         }
     }
 
     fun addPetProfile(profile: PetProfile) {
         viewModelScope.launch {
-            val newId = petDao.insertProfile(profile)
-            petDao.clearSelection()
-            petDao.selectProfile(newId)
+            petProfileRepository.insertAndSelectProfile(profile)
             com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(getApplication())
         }
     }
 
     fun updatePetProfile(profile: PetProfile) {
         viewModelScope.launch {
-            petDao.updateProfile(profile)
+            petProfileRepository.updateProfile(profile)
             com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(getApplication())
         }
     }
 
     fun deletePetProfile(profile: PetProfile) {
         viewModelScope.launch {
-            petDao.deleteProfile(profile)
-            val remaining = petDao.getAllProfiles()
-            // If deleted was selected, select first available
-            petProfiles.value.firstOrNull { it.id != profile.id }?.let {
-                petDao.selectProfile(it.id)
-            }
+            petProfileRepository.deleteProfileAndEnsureSelection(profile)
             com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(getApplication())
         }
     }
@@ -377,6 +376,56 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
 
     fun resetTranslationState() {
         _translationState.value = TranslationState.Idle
+    }
+
+    fun generatePetAvatar(
+        pet: PetProfile,
+        onAvatarSaved: ((String) -> Unit)? = null
+    ) {
+        val targetPetId = pet.id.takeIf { it > 0L }
+        val displayName = pet.name.trim().ifBlank { "Your Dog" }
+        _avatarGenState.value = AvatarGenerationState.Generating(
+            petId = targetPetId,
+            petName = displayName
+        )
+
+        viewModelScope.launch {
+            try {
+                val bitmap = petAvatarGenerator.generateDigitalAvatarBitmap(pet)
+                val savedUri = withContext(Dispatchers.IO) {
+                    PetAvatarGenerator.saveAvatarBitmapToFile(
+                        context = getApplication(),
+                        bitmap = bitmap,
+                        petName = displayName
+                    )
+                }
+
+                if (pet.id > 0L) {
+                    petProfileRepository.updateProfile(pet.copy(photoUri = savedUri))
+                    com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(getApplication())
+                }
+
+                onAvatarSaved?.invoke(savedUri)
+                _avatarGenState.value = AvatarGenerationState.Success(
+                    petId = targetPetId,
+                    avatarUri = savedUri,
+                    bitmap = bitmap,
+                    petName = displayName
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("BarkTalkViewModel", "Failed to generate Gemini digital pet avatar", e)
+                _avatarGenState.value = AvatarGenerationState.Error(
+                    petId = targetPetId,
+                    message = e.localizedMessage ?: "Failed to generate digital avatar with Gemini. Please try again."
+                )
+            }
+        }
+    }
+
+    fun resetAvatarGenerationState() {
+        _avatarGenState.value = AvatarGenerationState.Idle
     }
 
     override fun onCleared() {

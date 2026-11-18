@@ -1,10 +1,14 @@
 package com.example
 
 import android.content.Context
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.example.audio.CanineSoundboardPlayer
 import com.example.audio.SoundboardItem
@@ -572,5 +576,201 @@ class ExampleRobolectricTest {
     // Scroll to index 1 in the LazyColumn and verify log 602 now appears in the Favorites list
     composeTestRule.onNodeWithTag("favorites_list").performScrollToIndex(1)
     composeTestRule.onNodeWithTag("favorite_card_602").assertExists()
+  }
+
+  @Test
+  fun `pet avatar generator persists generated bitmap to internal pet_avatars storage`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val testBitmap = android.graphics.Bitmap.createBitmap(64, 64, android.graphics.Bitmap.Config.ARGB_8888)
+    val savedUri = com.example.ai.PetAvatarGenerator.saveAvatarBitmapToFile(
+      context = context,
+      bitmap = testBitmap,
+      petName = "Barnaby"
+    )
+
+    assertTrue(savedUri.startsWith("file://"))
+    assertTrue(com.example.ai.PetAvatarGenerator.isAiGeneratedAvatar(savedUri))
+    val file = java.io.File(android.net.Uri.parse(savedUri).path!!)
+    assertTrue(file.exists())
+    assertTrue(file.length() > 0L)
+  }
+
+  @Test
+  fun `pet profile form displays AI avatar trigger, loading state, and error retry state`() {
+    val pet = com.example.data.PetProfile(
+      id = 7L,
+      name = "Luna",
+      breed = "French Bulldog",
+      ageYears = 2,
+      personality = "Dramatic Diva"
+    )
+
+    composeTestRule.setContent {
+      val genState = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<com.example.ai.AvatarGenerationState>(
+          com.example.ai.AvatarGenerationState.Idle
+        )
+      }
+      BarkTalkTheme {
+        com.example.ui.components.PetProfileForm(
+          initialProfile = pet,
+          avatarGenState = genState.value,
+          onGenerateAiAvatar = { draft, _ ->
+            genState.value = com.example.ai.AvatarGenerationState.Generating(
+              petId = draft.id,
+              petName = draft.name
+            )
+          },
+          onDismissAvatarError = {
+            genState.value = com.example.ai.AvatarGenerationState.Idle
+          },
+          onSaveProfile = {},
+          onCancel = {}
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag("generate_ai_avatar_button").assertExists().performClick()
+    composeTestRule.onNodeWithTag("avatar_generation_loading").assertExists()
+  }
+
+  @Test
+  fun `pet profile form surfaces real AI avatar generation error with retry button`() {
+    val pet = com.example.data.PetProfile(
+      id = 8L,
+      name = "Zeus",
+      breed = "German Shepherd",
+      ageYears = 4,
+      personality = "Loyal Guardian"
+    )
+    var retryClicked = false
+
+    composeTestRule.setContent {
+      BarkTalkTheme {
+        com.example.ui.components.PetProfileForm(
+          initialProfile = pet,
+          avatarGenState = com.example.ai.AvatarGenerationState.Error(
+            petId = 8L,
+            message = "Network timeout during image generation"
+          ),
+          onGenerateAiAvatar = { _, _ -> retryClicked = true },
+          onSaveProfile = {},
+          onCancel = {}
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag("avatar_generation_error").assertExists()
+    composeTestRule.onNodeWithTag("retry_avatar_generation_button").assertExists().performClick()
+    assertTrue(retryClicked)
+  }
+
+  @Test
+  fun `pet profile and translation repositories persist and query Room data atomically`() = runBlocking {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = AppDatabase.getDatabase(context)
+    val petRepo = com.example.data.PetProfileRepository(db.petProfileDao())
+    val logRepo = com.example.data.TranslationRepository(db.translationDao())
+
+    val id1 = petRepo.insertAndSelectProfile(
+      com.example.data.PetProfile(
+        name = "Milo",
+        breed = "Corgi",
+        ageYears = 2,
+        personality = "Excited Zoomer"
+      )
+    )
+    val id2 = petRepo.insertAndSelectProfile(
+      com.example.data.PetProfile(
+        name = "Bella",
+        breed = "Beagle",
+        ageYears = 5,
+        personality = "Foodie Connoisseur"
+      )
+    )
+
+    // Verify atomic selection switched active profile to Bella
+    assertEquals(true, petRepo.getProfileById(id2)?.isSelected)
+    assertEquals(false, petRepo.getProfileById(id1)?.isSelected)
+
+    // Persist a bark history log for Bella and verify retrieval
+    val logId = logRepo.insertTranslation(
+      TranslationLog(
+        petId = id2,
+        petName = "Bella",
+        petBreed = "Beagle",
+        vocalizationType = "Happy Bark",
+        dominantPitchHz = 540,
+        intensityDb = 76,
+        englishTranslation = "Time for a walk!",
+        urgencyLevel = "MEDIUM",
+        confidencePercent = 95
+      )
+    )
+    assertEquals("Time for a walk!", logRepo.getTranslationById(logId)?.englishTranslation)
+
+    // Delete Bella and ensure atomic fallback selects a remaining profile
+    val bella = petRepo.getProfileById(id2)!!
+    petRepo.deleteProfileAndEnsureSelection(bella)
+    val remaining = petRepo.getAllProfilesOnce()
+    assertTrue(remaining.any { it.isSelected })
+  }
+
+  @Test
+  fun `pet profiles screen dynamically resizes to canonical list-detail two-pane layout on tablet width`() {
+    val sampleProfiles = listOf(
+      com.example.data.PetProfile(
+        id = 1L,
+        name = "Barnaby",
+        breed = "Golden Retriever",
+        ageYears = 3,
+        personality = "Gentle Goofball",
+        isSelected = true
+      ),
+      com.example.data.PetProfile(
+        id = 2L,
+        name = "Luna",
+        breed = "French Bulldog",
+        ageYears = 2,
+        personality = "Dramatic Diva",
+        isSelected = false
+      )
+    )
+
+    val isTabletMode = androidx.compose.runtime.mutableStateOf(false)
+
+    composeTestRule.setContent {
+      val widthDp = if (isTabletMode.value) 960.dp else 380.dp
+      BarkTalkTheme {
+        Box(
+          modifier = Modifier.requiredSize(
+            width = widthDp,
+            height = 800.dp
+          )
+        ) {
+          com.example.ui.screens.PetProfilesAdaptiveContent(
+            profiles = sampleProfiles,
+            selectedPet = sampleProfiles.first()
+          )
+        }
+      }
+    }
+
+    // 1. Compact handheld width (380dp): single list pane, no two-pane detail pane
+    composeTestRule.onNodeWithTag("pet_profiles_screen").assertExists()
+    composeTestRule.onNodeWithTag("pet_profiles_list_pane").assertExists()
+    composeTestRule.onNodeWithTag("pet_profiles_tablet_two_pane").assertDoesNotExist()
+
+    // 2. Dynamically resize container to Tablet Expanded width (960dp)
+    composeTestRule.runOnIdle {
+      isTabletMode.value = true
+    }
+
+    // Verify canonical List-Detail two-pane layout and inline PetProfileForm appear on tablet
+    composeTestRule.onNodeWithTag("tablet_list_detail_badge").assertExists()
+    composeTestRule.onNodeWithTag("pet_profiles_tablet_two_pane").assertExists()
+    composeTestRule.onNodeWithTag("pet_profiles_list_pane").assertExists()
+    composeTestRule.onNodeWithTag("pet_profiles_detail_pane").assertExists()
+    composeTestRule.onNodeWithTag("pet_profile_form").assertExists()
   }
 }

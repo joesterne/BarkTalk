@@ -69,8 +69,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -118,17 +118,17 @@ fun RecordBarkScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val petProfiles by viewModel.petProfiles.collectAsState()
-    val selectedPet by viewModel.selectedPet.collectAsState()
-    val isRecording by viewModel.isMediaRecording.collectAsState()
-    val durationSeconds by viewModel.mediaRecordingDurationSeconds.collectAsState()
-    val volumeDb by viewModel.mediaRecorderVolumeDb.collectAsState()
-    val waveform by viewModel.mediaRecorderWaveform.collectAsState()
-    val lastRecordedSample by viewModel.lastRecordedSample.collectAsState()
-    val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsState()
-    val recordedBarks by viewModel.recordedBarks.collectAsState()
-    val translationLogs by viewModel.translationLogs.collectAsState()
-    val dailyBarkGoal by viewModel.dailyBarkGoal.collectAsState()
+    val petProfiles by viewModel.petProfiles.collectAsStateWithLifecycle()
+    val selectedPet by viewModel.selectedPet.collectAsStateWithLifecycle()
+    val isRecording by viewModel.isMediaRecording.collectAsStateWithLifecycle()
+    val durationSeconds by viewModel.mediaRecordingDurationSeconds.collectAsStateWithLifecycle()
+    val volumeDb by viewModel.mediaRecorderVolumeDb.collectAsStateWithLifecycle()
+    val waveform by viewModel.mediaRecorderWaveform.collectAsStateWithLifecycle()
+    val lastRecordedSample by viewModel.lastRecordedSample.collectAsStateWithLifecycle()
+    val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsStateWithLifecycle()
+    val recordedBarks by viewModel.recordedBarks.collectAsStateWithLifecycle()
+    val translationLogs by viewModel.translationLogs.collectAsStateWithLifecycle()
+    val dailyBarkGoal by viewModel.dailyBarkGoal.collectAsStateWithLifecycle()
 
     val todayAnalyzedCount = remember(translationLogs, recordedBarks) {
         WeeklyBarkFrequencyCalculator.computeLast7DaysCombined(

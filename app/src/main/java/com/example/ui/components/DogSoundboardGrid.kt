@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -86,7 +87,7 @@ fun DogSoundboardGridCard(
     modifier: Modifier = Modifier
 ) {
     var selectedCategory by remember { mutableStateOf("All") }
-    var gridColumns by remember { mutableIntStateOf(3) }
+    var userOverrideColumns by remember { mutableStateOf<Int?>(null) }
 
     val categories = remember {
         listOf(
@@ -171,13 +172,19 @@ fun DogSoundboardGridCard(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     IconButton(
-                        onClick = { gridColumns = if (gridColumns == 3) 2 else 3 },
+                        onClick = {
+                            userOverrideColumns = when (userOverrideColumns) {
+                                null, 3 -> 2
+                                2 -> 4
+                                else -> 3
+                            }
+                        },
                         modifier = Modifier
                             .size(48.dp)
                             .testTag("toggle_soundboard_grid_columns_button")
                     ) {
                         Icon(
-                            imageVector = if (gridColumns == 3) Icons.Default.GridView else Icons.Default.ViewModule,
+                            imageVector = if ((userOverrideColumns ?: 3) >= 3) Icons.Default.GridView else Icons.Default.ViewModule,
                             contentDescription = "Switch grid layout density",
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -333,28 +340,37 @@ fun DogSoundboardGridCard(
             }
 
             // Interactive LazyVerticalGrid of Pre-Recorded Dog Sound Pads
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(gridColumns),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(350.dp)
-                    .testTag("main_soundboard_grid")
+            BoxWithConstraints(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                items(filteredItems, key = { it.id }) { item ->
-                    SoundboardGridPad(
-                        item = item,
-                        isPlaying = currentlyPlayingId == item.id,
-                        compactMode = gridColumns >= 3,
-                        onTap = {
-                            if (currentlyPlayingId == item.id) {
-                                onStopSound()
-                            } else {
-                                onPlaySound(item)
+                val effectiveColumns = userOverrideColumns ?: when {
+                    maxWidth >= 780.dp -> 4
+                    maxWidth >= 480.dp -> 3
+                    else -> 3
+                }
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(effectiveColumns),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(350.dp)
+                        .testTag("main_soundboard_grid")
+                ) {
+                    items(filteredItems, key = { it.id }) { item ->
+                        SoundboardGridPad(
+                            item = item,
+                            isPlaying = currentlyPlayingId == item.id,
+                            compactMode = effectiveColumns >= 3,
+                            onTap = {
+                                if (currentlyPlayingId == item.id) {
+                                    onStopSound()
+                                } else {
+                                    onPlaySound(item)
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }

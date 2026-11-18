@@ -36,8 +36,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,8 +70,8 @@ fun HistoryScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val allLogs by viewModel.translationLogs.collectAsState()
-    val recordedBarks by viewModel.recordedBarks.collectAsState()
+    val allLogs by viewModel.translationLogs.collectAsStateWithLifecycle()
+    val recordedBarks by viewModel.recordedBarks.collectAsStateWithLifecycle()
     var historyTabMode by remember { mutableStateOf("Recordings") } // "Recordings" or "Logs"
     var filterMode by remember { mutableStateOf("All") } // "All", "Favorites", "Urgent"
     var showClearDialog by remember { mutableStateOf(false) }
@@ -95,7 +95,7 @@ fun HistoryScreen(
         )
     }
 
-    val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsState()
+    val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier

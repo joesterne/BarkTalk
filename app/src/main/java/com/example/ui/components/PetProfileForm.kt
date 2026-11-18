@@ -27,15 +27,20 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Cake
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,6 +67,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.ai.AvatarGenerationState
+import com.example.ai.PetAvatarGenerator
 import com.example.data.PetProfile
 import com.example.util.PhotoStorageHelper
 
@@ -73,6 +80,9 @@ import com.example.util.PhotoStorageHelper
 @Composable
 fun PetProfileForm(
     initialProfile: PetProfile? = null,
+    avatarGenState: AvatarGenerationState = AvatarGenerationState.Idle,
+    onGenerateAiAvatar: ((draftProfile: PetProfile, onGeneratedUri: (String) -> Unit) -> Unit)? = null,
+    onDismissAvatarError: () -> Unit = {},
     onSaveProfile: (PetProfile) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
@@ -216,9 +226,33 @@ fun PetProfileForm(
                         }
                     }
 
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    val isGeneratingAvatar = avatarGenState is AvatarGenerationState.Generating
+                    val isAiAvatar = PetAvatarGenerator.isAiGeneratedAvatar(photoUriString)
+                    val buildDraftProfile: () -> PetProfile = {
+                        val trimmedName = name.trim().ifBlank { initialProfile?.name ?: "BarkTalk Pup" }
+                        val trimmedBreed = breed.trim().ifBlank { initialProfile?.breed ?: "Mixed Breed" }
+                        val parsedAge = ageText.toIntOrNull() ?: initialProfile?.ageYears ?: 3
+                        (initialProfile ?: PetProfile(
+                            name = trimmedName,
+                            breed = trimmedBreed,
+                            age = parsedAge,
+                            ageYears = parsedAge
+                        )).copy(
+                            name = trimmedName,
+                            breed = trimmedBreed,
+                            age = parsedAge,
+                            ageYears = parsedAge,
+                            photoUri = photoUriString,
+                            avatarEmoji = avatarEmoji,
+                            personality = personality,
+                            favoriteTreat = favoriteTreat.trim().ifBlank { "Treats" }
+                        )
+                    }
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         OutlinedButton(
                             onClick = {
@@ -226,17 +260,38 @@ fun PetProfileForm(
                                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                 )
                             },
+                            enabled = !isGeneratingAvatar,
                             modifier = Modifier.testTag("select_photo_button")
                         ) {
                             Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text(if (photoUriString == null) "Pick Dog Photo" else "Change Photo")
+                            Text(if (photoUriString == null) "Pick Photo" else "Change Photo")
+                        }
+
+                        if (onGenerateAiAvatar != null) {
+                            FilledTonalButton(
+                                onClick = {
+                                    onGenerateAiAvatar(buildDraftProfile()) { generatedUri ->
+                                        photoUriString = generatedUri
+                                    }
+                                },
+                                enabled = !isGeneratingAvatar,
+                                modifier = Modifier.testTag("generate_ai_avatar_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = "Generate Gemini AI Digital Avatar",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(if (isAiAvatar) "Regenerate AI" else "Generate AI Avatar")
+                            }
                         }
 
                         if (photoUriString != null) {
                             IconButton(
                                 onClick = { photoUriString = null },
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     Icons.Default.Delete,
@@ -244,6 +299,118 @@ fun PetProfileForm(
                                     tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(20.dp)
                                 )
+                            }
+                        }
+                    }
+
+                    if (isAiAvatar) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier.testTag("ai_avatar_badge")
+                        ) {
+                            Text(
+                                text = "✨ Gemini AI Digital Avatar",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    if (avatarGenState is AvatarGenerationState.Generating) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("avatar_generation_loading")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.5.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Column {
+                                    Text(
+                                        text = "Generating unique AI avatar for ${avatarGenState.petName}...",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Text(
+                                        text = "Illustrating ${breed.ifBlank { "canine" }} breed traits & $personality personality (30–60s)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (avatarGenState is AvatarGenerationState.Error) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("avatar_generation_error")
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ErrorOutline,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Avatar Generation Failed",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                                Text(
+                                    text = avatarGenState.message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (onGenerateAiAvatar != null) {
+                                        TextButton(
+                                            onClick = {
+                                                onGenerateAiAvatar(buildDraftProfile()) { generatedUri ->
+                                                    photoUriString = generatedUri
+                                                }
+                                            },
+                                            modifier = Modifier.testTag("retry_avatar_generation_button")
+                                        ) {
+                                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Retry")
+                                        }
+                                    }
+                                    TextButton(onClick = onDismissAvatarError) {
+                                        Text("Dismiss")
+                                    }
+                                }
                             }
                         }
                     }

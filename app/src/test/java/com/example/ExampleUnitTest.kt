@@ -480,5 +480,84 @@ class ExampleUnitTest {
         assertEquals(1, twoDaysAgoBucket.totalCount)
         assertEquals("Mournful Howl", twoDaysAgoBucket.dominantVocalization)
     }
+
+    @Test
+    fun testPetAvatarGenerator_buildsDistinctPromptsForBreedAndPersonality() {
+        assertEquals("gemini-nano-banana-2.1", com.example.ai.PetAvatarGenerator.MODEL_NAME)
+
+        val goofballGolden = com.example.data.PetProfile(
+            name = "Barnaby",
+            breed = "Golden Retriever",
+            ageYears = 3,
+            personality = "Gentle Goofball",
+            favoriteTreat = "Cheddar Cheese"
+        )
+        val divaFrenchie = com.example.data.PetProfile(
+            name = "Luna",
+            breed = "French Bulldog",
+            ageYears = 1,
+            personality = "Dramatic Diva",
+            favoriteTreat = "Freeze-dried Liver"
+        )
+
+        val prompt1 = com.example.ai.PetAvatarGenerator.buildAvatarPrompt(goofballGolden)
+        val prompt2 = com.example.ai.PetAvatarGenerator.buildAvatarPrompt(divaFrenchie)
+
+        assertTrue(prompt1.contains("Golden Retriever"))
+        assertTrue(prompt1.contains("Barnaby"))
+        assertTrue(prompt1.contains("head tilt"))
+        assertTrue(prompt1.contains("Cheddar Cheese"))
+
+        assertTrue(prompt2.contains("French Bulldog"))
+        assertTrue(prompt2.contains("Luna"))
+        assertTrue(prompt2.contains("puppy"))
+        assertTrue(prompt2.contains("bandana"))
+        assertTrue(prompt1 != prompt2)
+    }
+
+    @Test
+    fun testPetAvatarGenerator_detectsAiGeneratedAvatarUri() {
+        assertTrue(
+            com.example.ai.PetAvatarGenerator.isAiGeneratedAvatar(
+                "file:///data/user/0/com.aistudio.barktalk.wyqzk/files/pet_avatars/avatar_barnaby_1234.png"
+            )
+        )
+        assertTrue(
+            !com.example.ai.PetAvatarGenerator.isAiGeneratedAvatar(
+                "file:///data/user/0/com.aistudio.barktalk.wyqzk/files/pet_photos/pet_1234.jpg"
+            )
+        )
+        assertTrue(!com.example.ai.PetAvatarGenerator.isAiGeneratedAvatar(null))
+    }
+
+    @Test
+    fun testAdaptiveLayoutInfo_computesCompactMediumAndExpandedTabletMetrics() {
+        val compact = com.example.ui.BarkAdaptiveLayoutInfo.fromDimensions(
+            widthDp = androidx.compose.ui.unit.Dp(380f),
+            heightDp = androidx.compose.ui.unit.Dp(800f)
+        )
+        assertEquals(com.example.ui.BarkWindowSizeClass.COMPACT, compact.windowSizeClass)
+        assertEquals(false, compact.useNavigationRail)
+        assertEquals(false, compact.useTwoPaneLayout)
+        assertEquals(2, compact.gridColumns)
+
+        val mediumTablet = com.example.ui.BarkAdaptiveLayoutInfo.fromDimensions(
+            widthDp = androidx.compose.ui.unit.Dp(720f),
+            heightDp = androidx.compose.ui.unit.Dp(1024f)
+        )
+        assertEquals(com.example.ui.BarkWindowSizeClass.MEDIUM, mediumTablet.windowSizeClass)
+        assertEquals(true, mediumTablet.useNavigationRail)
+        assertEquals(true, mediumTablet.useTwoPaneLayout)
+        assertEquals(3, mediumTablet.gridColumns)
+
+        val expandedTablet = com.example.ui.BarkAdaptiveLayoutInfo.fromDimensions(
+            widthDp = androidx.compose.ui.unit.Dp(1024f),
+            heightDp = androidx.compose.ui.unit.Dp(768f)
+        )
+        assertEquals(com.example.ui.BarkWindowSizeClass.EXPANDED, expandedTablet.windowSizeClass)
+        assertEquals(true, expandedTablet.useNavigationRail)
+        assertEquals(true, expandedTablet.useTwoPaneLayout)
+        assertEquals(4, expandedTablet.gridColumns)
+    }
 }
 

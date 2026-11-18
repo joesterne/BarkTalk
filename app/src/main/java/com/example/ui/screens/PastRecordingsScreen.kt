@@ -48,8 +48,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -90,8 +90,8 @@ fun PastRecordingsScreen(
         BackHandler { onNavigateBack() }
     }
 
-    val recordedBarks by viewModel.recordedBarks.collectAsState()
-    val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsState()
+    val recordedBarks by viewModel.recordedBarks.collectAsStateWithLifecycle()
+    val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsStateWithLifecycle()
 
     PastRecordingsListContent(
         recordings = recordedBarks,

@@ -21,6 +21,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -64,8 +66,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -110,27 +112,27 @@ fun TranslateScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val selectedPet by viewModel.selectedPet.collectAsState()
-    val isListening by viewModel.isListening.collectAsState()
-    val liveDb by viewModel.liveVolumeDb.collectAsState()
-    val livePitch by viewModel.livePitchHz.collectAsState()
-    val waveform by viewModel.liveWaveform.collectAsState()
-    val translationState by viewModel.translationState.collectAsState()
-    val autoSpeak by viewModel.autoSpeakTranslations.collectAsState()
-    val notifyUrgent by viewModel.notifyHighUrgency.collectAsState()
+    val selectedPet by viewModel.selectedPet.collectAsStateWithLifecycle()
+    val isListening by viewModel.isListening.collectAsStateWithLifecycle()
+    val liveDb by viewModel.liveVolumeDb.collectAsStateWithLifecycle()
+    val livePitch by viewModel.livePitchHz.collectAsStateWithLifecycle()
+    val waveform by viewModel.liveWaveform.collectAsStateWithLifecycle()
+    val translationState by viewModel.translationState.collectAsStateWithLifecycle()
+    val autoSpeak by viewModel.autoSpeakTranslations.collectAsStateWithLifecycle()
+    val notifyUrgent by viewModel.notifyHighUrgency.collectAsStateWithLifecycle()
 
     // MediaRecorder states for audio sample capture
-    val isMediaRecording by viewModel.isMediaRecording.collectAsState()
-    val mediaDuration by viewModel.mediaRecordingDurationSeconds.collectAsState()
-    val mediaDb by viewModel.mediaRecorderVolumeDb.collectAsState()
-    val mediaWaveform by viewModel.mediaRecorderWaveform.collectAsState()
-    val lastRecordedSample by viewModel.lastRecordedSample.collectAsState()
-    val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsState()
-    val currentlyPlayingSoundId by viewModel.currentlyPlayingSoundId.collectAsState()
-    val lastPlayedSound by viewModel.lastPlayedSound.collectAsState()
-    val translationLogs by viewModel.translationLogs.collectAsState()
-    val recordedBarks by viewModel.recordedBarks.collectAsState()
-    val dailyBarkGoal by viewModel.dailyBarkGoal.collectAsState()
+    val isMediaRecording by viewModel.isMediaRecording.collectAsStateWithLifecycle()
+    val mediaDuration by viewModel.mediaRecordingDurationSeconds.collectAsStateWithLifecycle()
+    val mediaDb by viewModel.mediaRecorderVolumeDb.collectAsStateWithLifecycle()
+    val mediaWaveform by viewModel.mediaRecorderWaveform.collectAsStateWithLifecycle()
+    val lastRecordedSample by viewModel.lastRecordedSample.collectAsStateWithLifecycle()
+    val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsStateWithLifecycle()
+    val currentlyPlayingSoundId by viewModel.currentlyPlayingSoundId.collectAsStateWithLifecycle()
+    val lastPlayedSound by viewModel.lastPlayedSound.collectAsStateWithLifecycle()
+    val translationLogs by viewModel.translationLogs.collectAsStateWithLifecycle()
+    val recordedBarks by viewModel.recordedBarks.collectAsStateWithLifecycle()
+    val dailyBarkGoal by viewModel.dailyBarkGoal.collectAsStateWithLifecycle()
 
     val weeklyBuckets = remember(translationLogs, recordedBarks) {
         WeeklyBarkFrequencyCalculator.computeLast7DaysCombined(
@@ -195,13 +197,22 @@ fun TranslateScreen(
         viewModel.sendTestNotification()
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("translate_screen"),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+    BoxWithConstraints(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopCenter
     ) {
+        val isWideTablet = maxWidth >= 700.dp
+        val horizontalPad = if (isWideTablet) 24.dp else 16.dp
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 1120.dp)
+                .fillMaxSize()
+                .testTag("translate_screen"),
+            contentPadding = PaddingValues(horizontal = horizontalPad, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         // 1. Hero Card with Pet Info
         item {
             Card(
@@ -975,29 +986,61 @@ fun TranslateScreen(
             }
         }
 
-        // 4.2 Daily Bark Analysis Goal & Progress Bar
-        item {
-            DailyBarkGoalCard(
-                todayAnalyzedCount = todayAnalyzedCount,
-                dailyGoal = dailyBarkGoal,
-                onUpdateDailyGoal = { newGoal -> viewModel.setDailyBarkGoal(newGoal) }
-            )
-        }
-
-        // 4.3 Quick Share Latest Bark Translation Card
-        if (latestBarkLog != null) {
+        // 4.2 & 4.3 Daily Bark Analysis Goal & Quick Share Latest Bark Translation (Side-by-side on tablets)
+        if (isWideTablet && latestBarkLog != null) {
             item {
-                LatestBarkQuickShareCard(
-                    latestLog = latestBarkLog,
-                    onOpenFormatDialog = { log -> shareDialogLog = log },
-                    onToggleFavorite = { log ->
-                        if (log.id > 0L) {
-                            viewModel.toggleFavorite(log)
-                        } else {
-                            viewModel.toggleLatestTranslationFavorite()
-                        }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("tablet_goal_and_share_row"),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        DailyBarkGoalCard(
+                            todayAnalyzedCount = todayAnalyzedCount,
+                            dailyGoal = dailyBarkGoal,
+                            onUpdateDailyGoal = { newGoal -> viewModel.setDailyBarkGoal(newGoal) }
+                        )
                     }
+                    Box(modifier = Modifier.weight(1f)) {
+                        LatestBarkQuickShareCard(
+                            latestLog = latestBarkLog,
+                            onOpenFormatDialog = { log -> shareDialogLog = log },
+                            onToggleFavorite = { log ->
+                                if (log.id > 0L) {
+                                    viewModel.toggleFavorite(log)
+                                } else {
+                                    viewModel.toggleLatestTranslationFavorite()
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        } else {
+            item {
+                DailyBarkGoalCard(
+                    todayAnalyzedCount = todayAnalyzedCount,
+                    dailyGoal = dailyBarkGoal,
+                    onUpdateDailyGoal = { newGoal -> viewModel.setDailyBarkGoal(newGoal) }
                 )
+            }
+
+            if (latestBarkLog != null) {
+                item {
+                    LatestBarkQuickShareCard(
+                        latestLog = latestBarkLog,
+                        onOpenFormatDialog = { log -> shareDialogLog = log },
+                        onToggleFavorite = { log ->
+                            if (log.id > 0L) {
+                                viewModel.toggleFavorite(log)
+                            } else {
+                                viewModel.toggleLatestTranslationFavorite()
+                            }
+                        }
+                    )
+                }
             }
         }
 
@@ -1130,15 +1173,16 @@ fun TranslateScreen(
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
 
-                    OutlinedButton(
-                        onClick = {
-                            com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(context)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("sync_widget_button")
-                    ) {
-                        Text("🔄 Force Sync Home Screen Widget")
+                        OutlinedButton(
+                            onClick = {
+                                com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(context)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("sync_widget_button")
+                        ) {
+                            Text("🔄 Force Sync Home Screen Widget")
+                        }
                     }
                 }
             }

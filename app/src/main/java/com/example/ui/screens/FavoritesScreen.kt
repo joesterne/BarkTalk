@@ -44,8 +44,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -79,10 +79,10 @@ fun FavoritesScreen(
     onNavigateToTranslate: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val favoriteTranslations by viewModel.favoriteTranslations.collectAsState()
-    val favoriteRecordedBarks by viewModel.favoriteRecordedBarks.collectAsState()
-    val allLogs by viewModel.translationLogs.collectAsState()
-    val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsState()
+    val favoriteTranslations by viewModel.favoriteTranslations.collectAsStateWithLifecycle()
+    val favoriteRecordedBarks by viewModel.favoriteRecordedBarks.collectAsStateWithLifecycle()
+    val allLogs by viewModel.translationLogs.collectAsStateWithLifecycle()
+    val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsStateWithLifecycle()
 
     // Merge favorite logs and any favorite recorded barks not already in favoriteTranslations
     val mergedFavorites = remember(favoriteTranslations, favoriteRecordedBarks) {

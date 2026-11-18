@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -273,25 +274,39 @@ fun CanineEmotionSoundboard(
             }
         }
 
-        // Soundboard Grid of Emotion-Mapped Synthesized Barks
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize()
+        // Soundboard Grid of Emotion-Mapped Synthesized Barks (Dynamically resized for phones & tablets)
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("soundboard_adaptive_grid_container")
         ) {
-            items(filteredItems, key = { it.id }) { item ->
-                EmotionBarkCard(
-                    item = item,
-                    isPlaying = currentlyPlayingId == item.id,
-                    onTogglePlay = {
-                        if (currentlyPlayingId == item.id) {
-                            onStopSound()
-                        } else {
-                            onPlaySound(item)
+            val dynamicColumns = when {
+                maxWidth >= 840.dp -> 4
+                maxWidth >= 600.dp -> 3
+                else -> 2
+            }
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(dynamicColumns),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("soundboard_grid_cols_$dynamicColumns")
+            ) {
+                items(filteredItems, key = { it.id }) { item ->
+                    EmotionBarkCard(
+                        item = item,
+                        isPlaying = currentlyPlayingId == item.id,
+                        onTogglePlay = {
+                            if (currentlyPlayingId == item.id) {
+                                onStopSound()
+                            } else {
+                                onPlaySound(item)
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     }

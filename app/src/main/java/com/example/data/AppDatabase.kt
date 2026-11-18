@@ -9,6 +9,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
 import androidx.room.Update
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
@@ -21,8 +22,14 @@ interface PetProfileDao {
     @Query("SELECT * FROM pet_profiles ORDER BY isSelected DESC, name ASC")
     fun getAllProfiles(): Flow<List<PetProfile>>
 
+    @Query("SELECT * FROM pet_profiles ORDER BY isSelected DESC, name ASC")
+    suspend fun getAllProfilesOnce(): List<PetProfile>
+
     @Query("SELECT * FROM pet_profiles WHERE isSelected = 1 LIMIT 1")
     fun getSelectedProfile(): Flow<PetProfile?>
+
+    @Query("SELECT COUNT(*) FROM pet_profiles")
+    fun getProfileCount(): Flow<Int>
 
     @Query("SELECT * FROM pet_profiles WHERE id = :id")
     suspend fun getProfileById(id: Long): PetProfile?
@@ -41,6 +48,28 @@ interface PetProfileDao {
 
     @Query("UPDATE pet_profiles SET isSelected = 1 WHERE id = :id")
     suspend fun selectProfile(id: Long)
+
+    @Transaction
+    suspend fun setSelectedProfile(petId: Long) {
+        clearSelection()
+        selectProfile(petId)
+    }
+
+    @Transaction
+    suspend fun insertAndSelectProfile(profile: PetProfile): Long {
+        val newId = insertProfile(profile)
+        setSelectedProfile(newId)
+        return newId
+    }
+
+    @Transaction
+    suspend fun deleteProfileAndEnsureSelection(profile: PetProfile) {
+        deleteProfile(profile)
+        val remaining = getAllProfilesOnce()
+        if (remaining.isNotEmpty() && remaining.none { it.isSelected }) {
+            selectProfile(remaining.first().id)
+        }
+    }
 }
 
 @Database(
