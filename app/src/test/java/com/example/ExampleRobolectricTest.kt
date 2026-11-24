@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
@@ -953,5 +954,57 @@ class ExampleRobolectricTest {
     composeTestRule.onNodeWithTag("filter_dog_tag_treat_time").assertExists().performClick()
     composeTestRule.onNodeWithTag("history_item_702").assertExists()
     composeTestRule.onNodeWithTag("history_item_701").assertDoesNotExist()
+  }
+
+  @Test
+  fun `theme picker dialog switches app color palette and dark mode live`() {
+    var observedPrimaryColor: androidx.compose.ui.graphics.Color? = null
+    var selectedPalette = com.example.ui.theme.BarkColorPalette.GOLDEN_AMBER
+    var selectedMode = com.example.ui.theme.ThemeDarkMode.LIGHT
+
+    composeTestRule.setContent {
+      val paletteState = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(selectedPalette)
+      }
+      val modeState = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(selectedMode)
+      }
+
+      BarkTalkTheme(
+        colorPalette = paletteState.value,
+        darkMode = modeState.value
+      ) {
+        observedPrimaryColor = androidx.compose.material3.MaterialTheme.colorScheme.primary
+        com.example.ui.components.ThemePickerDialog(
+          selectedPalette = paletteState.value,
+          selectedDarkMode = modeState.value,
+          onSelectPalette = { newPalette ->
+            paletteState.value = newPalette
+            selectedPalette = newPalette
+          },
+          onSelectDarkMode = { newMode ->
+            modeState.value = newMode
+            selectedMode = newMode
+          },
+          onDismiss = {}
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag("theme_picker_dialog").assertExists()
+    val initialPrimary = observedPrimaryColor
+    assertEquals(com.example.ui.theme.AmberPrimaryLight, initialPrimary)
+
+    // Switch to Forest Park palette
+    composeTestRule.onNodeWithTag("theme_palette_forest_park").assertExists().performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(com.example.ui.theme.BarkColorPalette.FOREST_PARK, selectedPalette)
+    assertEquals(com.example.ui.theme.ForestPrimaryLight, observedPrimaryColor)
+
+    // Switch to Dark appearance mode
+    composeTestRule.onNodeWithTag("theme_mode_dark").assertExists().performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(com.example.ui.theme.ThemeDarkMode.DARK, selectedMode)
+    assertEquals(com.example.ui.theme.ForestPrimaryDark, observedPrimaryColor)
   }
 }

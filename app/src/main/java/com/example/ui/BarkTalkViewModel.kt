@@ -16,6 +16,8 @@ import com.example.audio.SoundboardItem
 import com.example.data.AppDatabase
 import com.example.data.PetProfile
 import com.example.data.TranslationLog
+import com.example.ui.theme.BarkColorPalette
+import com.example.ui.theme.ThemeDarkMode
 import com.example.util.BarkEasterEgg
 import com.example.util.CanineTtsPlayer
 import com.example.util.EasterEggCelebrationEvent
@@ -118,6 +120,27 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
 
     private val _snootBoopCount = MutableStateFlow(0)
     val snootBoopCount: StateFlow<Int> = _snootBoopCount.asStateFlow()
+
+    // App Color Theme & Appearance preferences (persisted locally via SharedPreferences)
+    private val _selectedColorPalette = MutableStateFlow(
+        BarkColorPalette.fromId(prefs.getString("color_theme_palette", BarkColorPalette.GOLDEN_AMBER.id))
+    )
+    val selectedColorPalette: StateFlow<BarkColorPalette> = _selectedColorPalette.asStateFlow()
+
+    private val _selectedDarkMode = MutableStateFlow(
+        ThemeDarkMode.fromId(prefs.getString("theme_dark_mode", ThemeDarkMode.SYSTEM.id))
+    )
+    val selectedDarkMode: StateFlow<ThemeDarkMode> = _selectedDarkMode.asStateFlow()
+
+    fun setColorPalette(palette: BarkColorPalette) {
+        _selectedColorPalette.value = palette
+        prefs.edit().putString("color_theme_palette", palette.id).apply()
+    }
+
+    fun setThemeDarkMode(mode: ThemeDarkMode) {
+        _selectedDarkMode.value = mode
+        prefs.edit().putString("theme_dark_mode", mode.id).apply()
+    }
 
     private val recentSoundboardIds = mutableListOf<String>()
 

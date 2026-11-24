@@ -620,5 +620,42 @@ class ExampleUnitTest {
         assertEquals("Ready for belly rubs.", untaggedLog.translatedText)
         assertEquals(null, untaggedLog.dogTag)
     }
+
+    @Test
+    fun testColorThemePalettes_parseIdsAndResolveDistinctSchemes() {
+        assertEquals(
+            com.example.ui.theme.BarkColorPalette.OCEAN_RETRIEVER,
+            com.example.ui.theme.BarkColorPalette.fromId("ocean_retriever")
+        )
+        assertEquals(
+            com.example.ui.theme.BarkColorPalette.GOLDEN_AMBER,
+            com.example.ui.theme.BarkColorPalette.fromId("unknown_palette")
+        )
+        assertEquals(
+            com.example.ui.theme.ThemeDarkMode.DARK,
+            com.example.ui.theme.ThemeDarkMode.fromId("dark")
+        )
+        assertEquals(
+            com.example.ui.theme.ThemeDarkMode.SYSTEM,
+            com.example.ui.theme.ThemeDarkMode.fromId(null)
+        )
+
+        val amberLight = com.example.ui.theme.resolveColorScheme(
+            com.example.ui.theme.BarkColorPalette.GOLDEN_AMBER,
+            darkTheme = false
+        )
+        val forestLight = com.example.ui.theme.resolveColorScheme(
+            com.example.ui.theme.BarkColorPalette.FOREST_PARK,
+            darkTheme = false
+        )
+        val oceanDark = com.example.ui.theme.resolveColorScheme(
+            com.example.ui.theme.BarkColorPalette.OCEAN_RETRIEVER,
+            darkTheme = true
+        )
+
+        assertTrue(amberLight.primary != forestLight.primary)
+        assertTrue(forestLight.primary != oceanDark.primary)
+        assertTrue(amberLight.background != oceanDark.background)
+    }
 }
 

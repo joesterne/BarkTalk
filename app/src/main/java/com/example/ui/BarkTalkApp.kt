@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Hearing
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
@@ -62,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.components.EasterEggUnlockedDialog
 import com.example.ui.components.EasterEggVaultDialog
+import com.example.ui.components.ThemePickerDialog
 import com.example.ui.screens.FavoritesScreen
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.PastRecordingsScreen
@@ -95,6 +97,7 @@ fun BarkTalkApp(
     var currentTab by remember { mutableStateOf(BarkNavTab.TRANSLATE) }
     var showPastRecordings by remember { mutableStateOf(false) }
     var showEasterEggVault by remember { mutableStateOf(false) }
+    var showThemePicker by remember { mutableStateOf(false) }
     val selectedPet by viewModel.selectedPet.collectAsStateWithLifecycle()
     val translationLogs by viewModel.translationLogs.collectAsStateWithLifecycle()
     val recordedBarks by viewModel.recordedBarks.collectAsStateWithLifecycle()
@@ -102,6 +105,8 @@ fun BarkTalkApp(
     val zoomiesModeEnabled by viewModel.zoomiesModeEnabled.collectAsStateWithLifecycle()
     val activeEasterEggEvent by viewModel.activeEasterEggEvent.collectAsStateWithLifecycle()
     val snootBoopCount by viewModel.snootBoopCount.collectAsStateWithLifecycle()
+    val selectedColorPalette by viewModel.selectedColorPalette.collectAsStateWithLifecycle()
+    val selectedDarkMode by viewModel.selectedDarkMode.collectAsStateWithLifecycle()
     val incomingIntent by intentFlow?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
 
     LaunchedEffect(incomingIntent) {
@@ -205,6 +210,16 @@ fun BarkTalkApp(
                         }
                     },
                     actions = {
+                        IconButton(
+                            onClick = { showThemePicker = true },
+                            modifier = Modifier.testTag("top_bar_theme_picker_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = "Change App Color Theme",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                         if (unlockedEasterEggs.isNotEmpty()) {
                             IconButton(
                                 onClick = { showEasterEggVault = true },
@@ -490,6 +505,17 @@ fun BarkTalkApp(
                 zoomiesModeEnabled = zoomiesModeEnabled,
                 onToggleZoomiesMode = { viewModel.toggleZoomiesMode() },
                 onDismiss = { showEasterEggVault = false }
+            )
+        }
+
+        // Color Theme & Appearance Picker Dialog
+        if (showThemePicker) {
+            ThemePickerDialog(
+                selectedPalette = selectedColorPalette,
+                selectedDarkMode = selectedDarkMode,
+                onSelectPalette = { palette -> viewModel.setColorPalette(palette) },
+                onSelectDarkMode = { mode -> viewModel.setThemeDarkMode(mode) },
+                onDismiss = { showThemePicker = false }
             )
         }
     }

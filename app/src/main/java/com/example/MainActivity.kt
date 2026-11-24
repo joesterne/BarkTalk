@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.firebase.configureAppCheck
 import com.example.ui.BarkTalkApp
 import com.example.ui.BarkTalkViewModel
@@ -27,7 +29,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            BarkTalkTheme {
+            val selectedPalette by viewModel.selectedColorPalette.collectAsStateWithLifecycle()
+            val selectedDarkMode by viewModel.selectedDarkMode.collectAsStateWithLifecycle()
+
+            BarkTalkTheme(
+                colorPalette = selectedPalette,
+                darkMode = selectedDarkMode
+            ) {
                 BarkTalkApp(
                     viewModel = viewModel,
                     intentFlow = currentIntentFlow
