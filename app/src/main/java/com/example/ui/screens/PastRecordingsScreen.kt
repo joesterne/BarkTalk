@@ -65,6 +65,8 @@ import androidx.compose.material.icons.filled.PictureAsPdf
 import com.example.data.RecordedBark
 import com.example.data.TranslationLog
 import com.example.ui.BarkTalkViewModel
+import com.example.ui.components.DogTagBadge
+import com.example.ui.components.DogTagEditorDialog
 import com.example.ui.components.PdfExportDialog
 import com.example.ui.components.ShareTranslationDialog
 import com.example.ui.components.WeeklyBarkFrequencyCalculator
@@ -91,15 +93,26 @@ fun PastRecordingsScreen(
     }
 
     val recordedBarks by viewModel.recordedBarks.collectAsStateWithLifecycle()
+    val assignedDogTags by viewModel.assignedDogTags.collectAsStateWithLifecycle()
+    val petProfiles by viewModel.petProfiles.collectAsStateWithLifecycle()
     val currentlyPlayingBarkPath by viewModel.currentlyPlayingBarkPath.collectAsStateWithLifecycle()
+
+    val suggestedTags = remember(assignedDogTags, petProfiles) {
+        (assignedDogTags + petProfiles.map { it.name })
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinctBy { it.lowercase() }
+    }
 
     PastRecordingsListContent(
         recordings = recordedBarks,
+        suggestedTags = suggestedTags,
         currentlyPlayingBarkPath = currentlyPlayingBarkPath,
         onPlayAudio = { path -> viewModel.playRecordedBark(path) },
         onStopAudio = { viewModel.stopPlayingRecordedBark() },
         onSpeakTranslation = { text -> viewModel.speakTranslation(text) },
         onToggleFavorite = { bark -> viewModel.toggleRecordedBarkFavorite(bark) },
+        onUpdateDogTag = { bark, newTag -> viewModel.updateRecordedBarkDogTag(bark, newTag) },
         onDeleteRecording = { bark -> viewModel.deleteRecordedBark(bark) },
         onClearAllRecordings = { viewModel.clearAllLogs() },
         onNavigateBack = onNavigateBack,
@@ -110,16 +123,18 @@ fun PastRecordingsScreen(
 
 /**
  * Stateless, testable Compose layout displaying the list of past recordings from Room
- * with their timestamp and AI-generated translation.
+ * with their timestamp, AI-generated translation, and optional user-assigned dog tag.
  */
 @Composable
 fun PastRecordingsListContent(
     recordings: List<RecordedBark>,
+    suggestedTags: List<String> = emptyList(),
     currentlyPlayingBarkPath: String? = null,
     onPlayAudio: (String) -> Unit = {},
     onStopAudio: () -> Unit = {},
     onSpeakTranslation: (String) -> Unit = {},
     onToggleFavorite: (RecordedBark) -> Unit = {},
+    onUpdateDogTag: (RecordedBark, String?) -> Unit = { _, _ -> },
     onDeleteRecording: (RecordedBark) -> Unit = {},
     onClearAllRecordings: () -> Unit = {},
     onNavigateBack: (() -> Unit)? = null,
@@ -132,6 +147,7 @@ fun PastRecordingsListContent(
     var showClearConfirmDialog by remember { mutableStateOf(false) }
     var showPdfExportDialog by remember { mutableStateOf(false) }
     var shareTargetBark by remember { mutableStateOf<RecordedBark?>(null) }
+    var tagEditorTargetBark by remember { mutableStateOf<RecordedBark?>(null) }
 
     val weeklyBuckets = remember(recordings) {
         WeeklyBarkFrequencyCalculator.computeLast7DaysFromRecordings(recordings)
@@ -144,6 +160,7 @@ fun PastRecordingsListContent(
                     "Favorites" -> bark.isFavorite
                     "Urgent" -> bark.urgencyLevel.equals("HIGH", ignoreCase = true) ||
                         bark.urgencyLevel.equals("CRITICAL", ignoreCase = true)
+                    "Tagged" -> !bark.dogTag.isNullOrBlank()
                     else -> true
                 }
             }
@@ -153,7 +170,8 @@ fun PastRecordingsListContent(
                     bark.translation.contains(searchQuery, ignoreCase = true) ||
                         bark.petName.contains(searchQuery, ignoreCase = true) ||
                         bark.vocalizationType.contains(searchQuery, ignoreCase = true) ||
-                        bark.detectedEmotion.contains(searchQuery, ignoreCase = true)
+                        bark.detectedEmotion.contains(searchQuery, ignoreCase = true) ||
+                        (bark.dogTag?.contains(searchQuery, ignoreCase = true) == true)
                 }
             }
     }
@@ -317,6 +335,14 @@ fun PastRecordingsListContent(
             }
             item {
                 FilterChip(
+                    selected = selectedFilter == "Tagged",
+                    onClick = { selectedFilter = "Tagged" },
+                    label = { Text("🏷️ Tagged (${recordings.count { !it.dogTag.isNullOrBlank() }})") },
+                    modifier = Modifier.testTag("recordings_filter_tagged")
+                )
+            }
+            item {
+                FilterChip(
                     selected = showWeeklyChart,
                     onClick = { showWeeklyChart = !showWeeklyChart },
                     label = { Text("📊 7-Day Chart") },
@@ -412,12 +438,26 @@ fun PastRecordingsListContent(
                         onStopAudio = onStopAudio,
                         onSpeakTranslation = { onSpeakTranslation(bark.translation) },
                         onShare = { shareTargetBark = bark },
+                        onEditDogTag = { tagEditorTargetBark = bark },
                         onToggleFavorite = { onToggleFavorite(bark) },
                         onDelete = { onDeleteRecording(bark) }
                     )
                 }
             }
         }
+    }
+
+    tagEditorTargetBark?.let { bark ->
+        DogTagEditorDialog(
+            initialTag = bark.dogTag,
+            translatedTextPreview = bark.translation,
+            suggestedTags = suggestedTags,
+            onSaveTag = { updatedTag ->
+                onUpdateDogTag(bark, updatedTag)
+                tagEditorTargetBark = null
+            },
+            onDismiss = { tagEditorTargetBark = null }
+        )
     }
 
     if (showPdfExportDialog) {
@@ -509,6 +549,7 @@ fun PastRecordingItemCard(
     onStopAudio: () -> Unit,
     onSpeakTranslation: () -> Unit,
     onShare: () -> Unit,
+    onEditDogTag: () -> Unit = {},
     onToggleFavorite: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -641,6 +682,13 @@ fun PastRecordingItemCard(
                     }
                 }
             }
+
+            // Optional User-Assigned Dog Tag Badge
+            DogTagBadge(
+                dogTag = bark.dogTag,
+                onClick = onEditDogTag,
+                testTagName = "recording_dog_tag_badge_${bark.id}"
+            )
 
             // Acoustic Telemetry Row & Action Buttons
             Row(

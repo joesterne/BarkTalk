@@ -55,7 +55,8 @@ object BarkHistoryPdfExporter {
             recommendedAction = "",
             canineSubtext = "",
             isFavorite = isFavorite,
-            audioFilePath = audioFilePath
+            audioFilePath = audioFilePath,
+            dogTag = dogTag
         )
     }
 
@@ -288,7 +289,8 @@ object BarkHistoryPdfExporter {
 
                     var innerY = cursorY + 16f
                     val formattedDate = dateFormatter.format(Date(log.timestamp))
-                    val headerLine = "#${index + 1} • ${log.petName} (${log.petBreed}) • $formattedDate"
+                    val tagSuffix = log.dogTag?.takeIf { it.isNotBlank() }?.let { " • Tag: #$it" } ?: ""
+                    val headerLine = "#${index + 1} • ${log.petName} (${log.petBreed})$tagSuffix • $formattedDate"
                     canvas.drawText(headerLine, MARGIN + 12f, innerY, sectionPaint)
 
                     val urgencyTag = "[${log.urgencyLevel} • ${log.detectedEmotion}]"
@@ -421,7 +423,8 @@ object BarkHistoryPdfExporter {
         } else {
             logs.forEachIndexed { idx, log ->
                 val ts = dateFormatter.format(Date(log.timestamp))
-                lines.add("${idx + 1}. [${ts}] ${log.petName} (${log.petBreed}) - ${log.vocalizationType}")
+                val tagSuffix = log.dogTag?.takeIf { it.isNotBlank() }?.let { " [Tag: $it]" } ?: ""
+                lines.add("${idx + 1}. [${ts}] ${log.petName} (${log.petBreed})$tagSuffix - ${log.vocalizationType}")
                 lines.add("   Translation: \"${log.englishTranslation}\"")
                 lines.add("   Acoustics: ${log.intensityDb} dB | ${log.dominantPitchHz} Hz | Emotion: ${log.detectedEmotion} | Urgency: ${log.urgencyLevel}")
                 if (log.dogThought.isNotBlank()) {

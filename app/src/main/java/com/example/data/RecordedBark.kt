@@ -26,7 +26,8 @@ data class RecordedBark(
     val petId: Long = 1L,
     val petName: String = "Barnaby",
     val petBreed: String = "Golden Retriever",
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val dogTag: String? = null // Optional user-assigned dog tag
 ) {
     /**
      * Convenience accessor for the AI-generated translation.

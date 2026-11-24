@@ -2,6 +2,7 @@ package com.example.ui
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Hearing
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -51,12 +53,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ui.components.EasterEggUnlockedDialog
+import com.example.ui.components.EasterEggVaultDialog
 import com.example.ui.screens.FavoritesScreen
 import com.example.ui.screens.HistoryScreen
 import com.example.ui.screens.PastRecordingsScreen
@@ -64,6 +69,7 @@ import com.example.ui.screens.PetProfilesScreen
 import com.example.ui.screens.RecordBarkScreen
 import com.example.ui.screens.SoundboardScreen
 import com.example.ui.screens.TranslateScreen
+import com.example.util.BarkEasterEgg
 import com.example.util.BarkHistoryPdfExporter.toTranslationLog
 import com.example.util.SocialShareHelper
 import com.example.widget.BarkTalkWidgetProvider
@@ -88,9 +94,14 @@ fun BarkTalkApp(
     val context = LocalContext.current
     var currentTab by remember { mutableStateOf(BarkNavTab.TRANSLATE) }
     var showPastRecordings by remember { mutableStateOf(false) }
+    var showEasterEggVault by remember { mutableStateOf(false) }
     val selectedPet by viewModel.selectedPet.collectAsStateWithLifecycle()
     val translationLogs by viewModel.translationLogs.collectAsStateWithLifecycle()
     val recordedBarks by viewModel.recordedBarks.collectAsStateWithLifecycle()
+    val unlockedEasterEggs by viewModel.unlockedEasterEggs.collectAsStateWithLifecycle()
+    val zoomiesModeEnabled by viewModel.zoomiesModeEnabled.collectAsStateWithLifecycle()
+    val activeEasterEggEvent by viewModel.activeEasterEggEvent.collectAsStateWithLifecycle()
+    val snootBoopCount by viewModel.snootBoopCount.collectAsStateWithLifecycle()
     val incomingIntent by intentFlow?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
 
     LaunchedEffect(incomingIntent) {
@@ -122,13 +133,29 @@ fun BarkTalkApp(
                 CenterAlignedTopAppBar(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(36.dp)
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .clickable { viewModel.onTopBarSnootBoop() }
+                                    .testTag("top_bar_snoot_boop_logo")
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text("🐕", fontSize = 20.sp)
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (zoomiesModeEnabled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(38.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = when {
+                                                zoomiesModeEnabled -> "⚡"
+                                                snootBoopCount >= 3 -> "🐾"
+                                                else -> "🐕"
+                                            },
+                                            fontSize = 20.sp
+                                        )
+                                    }
                                 }
                             }
                             Spacer(Modifier.width(10.dp))
@@ -141,13 +168,21 @@ fun BarkTalkApp(
                             Spacer(Modifier.width(8.dp))
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer
+                                color = if (zoomiesModeEnabled) {
+                                    MaterialTheme.colorScheme.tertiaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                }
                             ) {
                                 Text(
-                                    text = "Gemini AI",
+                                    text = if (zoomiesModeEnabled) "⚡ Zoomies" else "Gemini AI",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    color = if (zoomiesModeEnabled) {
+                                        MaterialTheme.colorScheme.onTertiaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    },
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
@@ -170,6 +205,18 @@ fun BarkTalkApp(
                         }
                     },
                     actions = {
+                        if (unlockedEasterEggs.isNotEmpty()) {
+                            IconButton(
+                                onClick = { showEasterEggVault = true },
+                                modifier = Modifier.testTag("top_bar_easter_egg_vault_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.EmojiEvents,
+                                    contentDescription = "Open Secret Easter Egg Vault (${unlockedEasterEggs.size}/${BarkEasterEgg.entries.size})",
+                                    tint = MaterialTheme.colorScheme.tertiary
+                                )
+                            }
+                        }
                         IconButton(
                             onClick = {
                                 val latest = translationLogs.firstOrNull()
@@ -423,6 +470,27 @@ fun BarkTalkApp(
                     }
                 }
             }
+        }
+
+        // Easter Egg Unlock Celebration Overlay & Confetti
+        activeEasterEggEvent?.let { event ->
+            EasterEggUnlockedDialog(
+                event = event,
+                unlockedCount = unlockedEasterEggs.size,
+                totalCount = BarkEasterEgg.entries.size,
+                onDismiss = { viewModel.dismissEasterEggEvent() },
+                onOpenVault = { showEasterEggVault = true }
+            )
+        }
+
+        // Secret Good Boy Vault Dialog
+        if (showEasterEggVault) {
+            EasterEggVaultDialog(
+                unlockedEggs = unlockedEasterEggs,
+                zoomiesModeEnabled = zoomiesModeEnabled,
+                onToggleZoomiesMode = { viewModel.toggleZoomiesMode() },
+                onDismiss = { showEasterEggVault = false }
+            )
         }
     }
 }

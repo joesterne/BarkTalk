@@ -773,4 +773,185 @@ class ExampleRobolectricTest {
     composeTestRule.onNodeWithTag("pet_profiles_detail_pane").assertExists()
     composeTestRule.onNodeWithTag("pet_profile_form").assertExists()
   }
+
+  @Test
+  fun `pet profile form reveals secret legend easter egg banner for Doge`() {
+    val dogePet = com.example.data.PetProfile(
+      id = 42L,
+      name = "Doge",
+      breed = "Shiba Inu",
+      ageYears = 4,
+      personality = "Gentle Goofball"
+    )
+
+    composeTestRule.setContent {
+      BarkTalkTheme {
+        com.example.ui.components.PetProfileForm(
+          initialProfile = dogePet,
+          onSaveProfile = {},
+          onCancel = {}
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag("secret_dog_legend_banner").assertExists()
+  }
+
+  @Test
+  fun `soundboard secret opera easter egg triggers after 5 speaker taps and opens vault`() {
+    var operaTriggered = false
+    val showVaultState = androidx.compose.runtime.mutableStateOf(false)
+
+    composeTestRule.setContent {
+      BarkTalkTheme {
+        if (showVaultState.value) {
+          com.example.ui.components.EasterEggVaultDialog(
+            unlockedEggs = setOf(
+              com.example.util.BarkEasterEgg.SOUNDBOARD_OPERA,
+              com.example.util.BarkEasterEgg.SNOOT_BOOP_ZOOMIES
+            ),
+            zoomiesModeEnabled = true,
+            onToggleZoomiesMode = {},
+            onDismiss = { showVaultState.value = false }
+          )
+        } else {
+          com.example.ui.components.CanineEmotionSoundboard(
+            items = CanineSoundboardPlayer.SOUNDBOARD_ITEMS,
+            currentlyPlayingId = null,
+            onPlaySound = {},
+            onStopSound = {},
+            onSecretOperaTriggered = {
+              operaTriggered = true
+              showVaultState.value = true
+            }
+          )
+        }
+      }
+    }
+
+    repeat(5) {
+      composeTestRule.onNodeWithTag("soundboard_secret_opera_trigger").assertExists().performClick()
+    }
+
+    assertTrue(operaTriggered)
+    composeTestRule.onNodeWithTag("easter_egg_vault_dialog").assertExists()
+    composeTestRule.onNodeWithTag("zoomies_mode_switch").assertExists()
+    composeTestRule.onNodeWithTag("vault_egg_soundboard_opera").assertExists()
+  }
+
+  @Test
+  fun `room database persists translated bark logs with timestamp and optional user-assigned dog tag`() = runBlocking {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val db = AppDatabase.getDatabase(context)
+    val repo = com.example.data.TranslationRepository(db.translationDao())
+
+    val ts1 = 1732410000000L
+    val ts2 = 1732413600000L
+
+    // 1. Insert log with a user-assigned dog tag
+    val taggedId = repo.insertTranslation(
+      TranslationLog(
+        petId = 1L,
+        petName = "Barnaby",
+        petBreed = "Golden Retriever",
+        timestamp = ts1,
+        englishTranslation = "The mail truck just pulled up!",
+        dogTag = "Doorbell Alert"
+      )
+    )
+    // 2. Insert log without a dog tag (optional null)
+    val untaggedId = repo.insertTranslation(
+      TranslationLog(
+        petId = 2L,
+        petName = "Luna",
+        petBreed = "French Bulldog",
+        timestamp = ts2,
+        englishTranslation = "Can I get a midnight snack?",
+        dogTag = null
+      )
+    )
+
+    val retrievedTagged = repo.getTranslationById(taggedId)
+    val retrievedUntagged = repo.getTranslationById(untaggedId)
+
+    assertNotNull(retrievedTagged)
+    assertEquals("The mail truck just pulled up!", retrievedTagged?.translatedText)
+    assertEquals(ts1, retrievedTagged?.timestamp)
+    assertEquals("Doorbell Alert", retrievedTagged?.dogTag)
+
+    assertNotNull(retrievedUntagged)
+    assertEquals("Can I get a midnight snack?", retrievedUntagged?.translatedText)
+    assertEquals(ts2, retrievedUntagged?.timestamp)
+    assertEquals(null, retrievedUntagged?.dogTag)
+
+    // 3. Assign a dog tag to the previously untagged log in Room
+    repo.updateDogTag(untaggedId, "Treat Time")
+    assertEquals("Treat Time", repo.getTranslationById(untaggedId)?.dogTag)
+
+    // 4. Clear the optional dog tag back to null in Room
+    repo.updateDogTag(taggedId, "   ")
+    assertEquals(null, repo.getTranslationById(taggedId)?.dogTag)
+  }
+
+  @Test
+  fun `history logs UI assigns edits filters and clears optional dog tags`() {
+    val initialLogs = listOf(
+      TranslationLog(
+        id = 701L,
+        petId = 1L,
+        petName = "Barnaby",
+        petBreed = "Golden Retriever",
+        timestamp = 1732410000000L,
+        englishTranslation = "Squirrel on the porch railing!",
+        dogTag = "Squirrel Patrol"
+      ),
+      TranslationLog(
+        id = 702L,
+        petId = 2L,
+        petName = "Luna",
+        petBreed = "French Bulldog",
+        timestamp = 1732413600000L,
+        englishTranslation = "Time for dinner right now!",
+        dogTag = null
+      )
+    )
+
+    var lastUpdatedTag: Pair<Long, String?>? = null
+
+    composeTestRule.setContent {
+      val logsState = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(initialLogs)
+      }
+      BarkTalkTheme {
+        com.example.ui.screens.TranslationLogsHistoryContent(
+          logs = logsState.value,
+          onUpdateDogTag = { log, newTag ->
+            lastUpdatedTag = log.id to newTag
+            logsState.value = logsState.value.map {
+              if (it.id == log.id) it.copy(dogTag = newTag) else it
+            }
+          }
+        )
+      }
+    }
+
+    composeTestRule.onNodeWithTag("translation_logs_history_content").assertExists()
+    composeTestRule.onNodeWithTag("history_translation_text_701").assertExists()
+    composeTestRule.onNodeWithTag("history_timestamp_701").assertExists()
+    composeTestRule.onNodeWithTag("history_dog_tag_badge_701").assertExists()
+
+    // Open the DogTagEditorDialog for untagged log 702 and assign a preset tag
+    composeTestRule.onNodeWithTag("translation_logs_list").performScrollToIndex(1)
+    composeTestRule.onNodeWithTag("history_dog_tag_badge_702").assertExists().performClick()
+    composeTestRule.onNodeWithTag("dog_tag_editor_dialog").assertExists()
+    composeTestRule.onNodeWithTag("dog_tag_preset_treat_time").assertExists().performClick()
+    composeTestRule.onNodeWithTag("save_dog_tag_button").assertExists().performClick()
+
+    assertEquals(702L to "Treat Time", lastUpdatedTag)
+
+    // Filter by the newly assigned dog tag chip
+    composeTestRule.onNodeWithTag("filter_dog_tag_treat_time").assertExists().performClick()
+    composeTestRule.onNodeWithTag("history_item_702").assertExists()
+    composeTestRule.onNodeWithTag("history_item_701").assertDoesNotExist()
+  }
 }

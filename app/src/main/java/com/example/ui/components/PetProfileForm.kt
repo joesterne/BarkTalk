@@ -70,6 +70,7 @@ import coil.compose.AsyncImage
 import com.example.ai.AvatarGenerationState
 import com.example.ai.PetAvatarGenerator
 import com.example.data.PetProfile
+import com.example.util.EasterEggEngine
 import com.example.util.PhotoStorageHelper
 
 /**
@@ -466,6 +467,42 @@ fun PetProfileForm(
                     .fillMaxWidth()
                     .testTag("pet_name_input")
             )
+
+            // Hidden Easter Egg: Secret Legendary Dog Name detector
+            val detectedLegend = remember(name, breed) {
+                EasterEggEngine.detectSecretDogLegend(name, breed)
+            }
+            if (detectedLegend != null) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.75f),
+                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.tertiary),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("secret_dog_legend_banner")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(detectedLegend.emoji, fontSize = 24.sp)
+                        Column {
+                            Text(
+                                text = "✨ Secret Legend: ${detectedLegend.title}",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Text(
+                                text = detectedLegend.quip,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
+                    }
+                }
+            }
 
             // Breed Field with Quick Suggestions
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

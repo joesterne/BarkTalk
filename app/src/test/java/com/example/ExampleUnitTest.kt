@@ -559,5 +559,66 @@ class ExampleUnitTest {
         assertEquals(true, expandedTablet.useTwoPaneLayout)
         assertEquals(4, expandedTablet.gridColumns)
     }
+
+    @Test
+    fun testEasterEggEngine_detectsSecretLegendaryDogNames() {
+        val doge = com.example.util.EasterEggEngine.detectSecretDogLegend("Doge", "Shiba Inu")
+        assertNotNull(doge)
+        assertEquals("Doge", doge?.canonicalName)
+
+        val cerberus = com.example.util.EasterEggEngine.detectSecretDogLegend("Cerberus")
+        assertNotNull(cerberus)
+        assertEquals("Cerberus", cerberus?.canonicalName)
+
+        val ordinary = com.example.util.EasterEggEngine.detectSecretDogLegend("Barnaby", "Golden Retriever")
+        assertEquals(null, ordinary)
+    }
+
+    @Test
+    fun testEasterEggEngine_matchesSecretSoundboardCombo() {
+        assertEquals(
+            false,
+            com.example.util.EasterEggEngine.matchesSoundboardCombo(listOf("happy_greeting", "playful_bow"))
+        )
+        assertEquals(
+            true,
+            com.example.util.EasterEggEngine.matchesSoundboardCombo(
+                listOf("calm_sigh", "happy_greeting", "playful_bow", "warning_guard")
+            )
+        )
+        assertEquals(
+            false,
+            com.example.util.EasterEggEngine.matchesSoundboardCombo(
+                listOf("warning_guard", "playful_bow", "happy_greeting")
+            )
+        )
+    }
+
+    @Test
+    fun testTranslationLog_translatedTextTimestampAndOptionalDogTag() {
+        val ts = 1732400000000L
+        val taggedLog = com.example.data.TranslationLog(
+            petId = 1L,
+            petName = "Barnaby",
+            petBreed = "Golden Retriever",
+            timestamp = ts,
+            englishTranslation = "Squirrel spotted on the maple tree!",
+            dogTag = "Squirrel Patrol"
+        )
+        val untaggedLog = com.example.data.TranslationLog(
+            petId = 1L,
+            petName = "Barnaby",
+            petBreed = "Golden Retriever",
+            timestamp = ts + 5000L,
+            englishTranslation = "Ready for belly rubs."
+        )
+
+        assertEquals("Squirrel spotted on the maple tree!", taggedLog.translatedText)
+        assertEquals(ts, taggedLog.timestamp)
+        assertEquals("Squirrel Patrol", taggedLog.dogTag)
+
+        assertEquals("Ready for belly rubs.", untaggedLog.translatedText)
+        assertEquals(null, untaggedLog.dogTag)
+    }
 }
 

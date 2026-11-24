@@ -16,7 +16,10 @@ import com.example.audio.SoundboardItem
 import com.example.data.AppDatabase
 import com.example.data.PetProfile
 import com.example.data.TranslationLog
+import com.example.util.BarkEasterEgg
 import com.example.util.CanineTtsPlayer
+import com.example.util.EasterEggCelebrationEvent
+import com.example.util.EasterEggEngine
 import com.example.util.NotificationHelper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +65,9 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
     val favoriteRecordedBarks: StateFlow<List<com.example.data.RecordedBark>> = recordedBarkRepository.favoriteRecordedBarks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val assignedDogTags: StateFlow<List<String>> = translationRepository.allDogTags
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val _lastTranslatedLogId = MutableStateFlow<Long?>(null)
     val lastTranslatedLogId: StateFlow<Long?> = _lastTranslatedLogId.asStateFlow()
 
@@ -99,6 +105,69 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
 
     private val _notifyHighUrgency = MutableStateFlow(true)
     val notifyHighUrgency: StateFlow<Boolean> = _notifyHighUrgency.asStateFlow()
+
+    // Easter Eggs state (persisted locally via SharedPreferences)
+    private val _unlockedEasterEggs = MutableStateFlow(EasterEggEngine.loadUnlockedEggs(prefs))
+    val unlockedEasterEggs: StateFlow<Set<BarkEasterEgg>> = _unlockedEasterEggs.asStateFlow()
+
+    private val _zoomiesModeEnabled = MutableStateFlow(EasterEggEngine.loadZoomiesMode(prefs))
+    val zoomiesModeEnabled: StateFlow<Boolean> = _zoomiesModeEnabled.asStateFlow()
+
+    private val _activeEasterEggEvent = MutableStateFlow<EasterEggCelebrationEvent?>(null)
+    val activeEasterEggEvent: StateFlow<EasterEggCelebrationEvent?> = _activeEasterEggEvent.asStateFlow()
+
+    private val _snootBoopCount = MutableStateFlow(0)
+    val snootBoopCount: StateFlow<Int> = _snootBoopCount.asStateFlow()
+
+    private val recentSoundboardIds = mutableListOf<String>()
+
+    fun triggerEasterEgg(egg: BarkEasterEgg, customMessage: String? = null) {
+        val current = _unlockedEasterEggs.value
+        val isFirst = egg !in current
+        if (isFirst) {
+            val updated = current + egg
+            _unlockedEasterEggs.value = updated
+            EasterEggEngine.saveUnlockedEggs(prefs, updated)
+        }
+        if (egg == BarkEasterEgg.SNOOT_BOOP_ZOOMIES) {
+            _zoomiesModeEnabled.value = true
+            EasterEggEngine.saveZoomiesMode(prefs, true)
+        }
+        _activeEasterEggEvent.value = EasterEggCelebrationEvent(
+            egg = egg,
+            customMessage = customMessage,
+            isFirstDiscovery = isFirst
+        )
+    }
+
+    fun onTopBarSnootBoop() {
+        val next = _snootBoopCount.value + 1
+        if (next >= 5) {
+            _snootBoopCount.value = 0
+            triggerEasterEgg(BarkEasterEgg.SNOOT_BOOP_ZOOMIES)
+        } else {
+            _snootBoopCount.value = next
+        }
+    }
+
+    fun onSquirrelDefconTriggered(petName: String) {
+        val customMsg = "RED ALERT for $petName! Fluffy-tailed perimeter threat spotted on the cedar fence! Commencing tactical bark protocol!"
+        triggerEasterEgg(BarkEasterEgg.SQUIRREL_DEFCON, customMessage = customMsg)
+    }
+
+    fun onSoundboardOperaTriggered() {
+        triggerEasterEgg(BarkEasterEgg.SOUNDBOARD_OPERA)
+    }
+
+    fun dismissEasterEggEvent() {
+        _activeEasterEggEvent.value = null
+    }
+
+    fun toggleZoomiesMode() {
+        val updated = !_zoomiesModeEnabled.value
+        _zoomiesModeEnabled.value = updated
+        EasterEggEngine.saveZoomiesMode(prefs, updated)
+    }
 
     fun setDailyBarkGoal(goal: Int) {
         val clamped = goal.coerceIn(1, 50)
@@ -152,7 +221,8 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
 
     fun submitPreparedSampleForAnalysis(
         sample: com.example.audio.RecordedBarkSample,
-        targetPet: PetProfile? = null
+        targetPet: PetProfile? = null,
+        dogTag: String? = null
     ) {
         if (targetPet != null && targetPet.id > 0L) {
             selectPet(targetPet.id)
@@ -160,7 +230,8 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
         translateVocalization(
             analysis = sample.acousticAnalysis,
             audioFilePath = sample.audioFile.absolutePath,
-            overridePet = targetPet
+            overridePet = targetPet,
+            dogTag = dogTag
         )
     }
 
@@ -180,7 +251,8 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
     fun translateVocalization(
         analysis: AcousticAnalysis,
         audioFilePath: String? = null,
-        overridePet: PetProfile? = null
+        overridePet: PetProfile? = null,
+        dogTag: String? = null
     ) {
         val currentPet = overridePet ?: selectedPet.value ?: petProfiles.value.firstOrNull() ?: PetProfile(
             name = "Barnaby",
@@ -188,6 +260,7 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
             ageYears = 3,
             ageMonths = 4
         )
+        val normalizedDogTag = dogTag?.trim()?.takeIf { it.isNotEmpty() }
 
         viewModelScope.launch {
             _translationState.value = TranslationState.TranslatingWithAi
@@ -196,7 +269,7 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
                 _translationState.value = TranslationState.Success(result, analysis)
 
                 val nowTimestamp = System.currentTimeMillis()
-                // Save to Room history with optional captured audio file
+                // Save to Room history with optional captured audio file & optional user-assigned dog tag
                 val newLog = TranslationLog(
                     petId = currentPet.id,
                     petName = currentPet.name,
@@ -214,12 +287,13 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
                     recommendedAction = result.recommendedAction,
                     canineSubtext = result.canineSubtext,
                     isFavorite = false,
-                    audioFilePath = audioFilePath
+                    audioFilePath = audioFilePath,
+                    dogTag = normalizedDogTag
                 )
                 val logId = translationRepository.insertTranslation(newLog)
                 _lastTranslatedLogId.value = logId
 
-                // Also persist to RecordedBark Room table with timestamp and AI-generated translation
+                // Also persist to RecordedBark Room table with timestamp, AI-generated translation & optional dog tag
                 val recordedDuration = _lastRecordedSample.value?.durationSeconds ?: 1.8f
                 val recordedBark = com.example.data.RecordedBark(
                     timestamp = nowTimestamp,
@@ -237,7 +311,8 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
                     petId = currentPet.id,
                     petName = currentPet.name,
                     petBreed = currentPet.breed,
-                    isFavorite = false
+                    isFavorite = false,
+                    dogTag = normalizedDogTag
                 )
                 recordedBarkRepository.insertRecordedBark(recordedBark)
 
@@ -269,6 +344,14 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
 
     fun playSoundboard(item: SoundboardItem) {
         soundboardPlayer.playSound(item, viewModelScope)
+        recentSoundboardIds.add(item.id)
+        if (recentSoundboardIds.size > 6) {
+            recentSoundboardIds.removeAt(0)
+        }
+        if (EasterEggEngine.matchesSoundboardCombo(recentSoundboardIds)) {
+            recentSoundboardIds.clear()
+            onSoundboardOperaTriggered()
+        }
     }
 
     fun stopSoundboard() {
@@ -333,6 +416,42 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun updateLogDogTag(log: TranslationLog, dogTag: String?) {
+        val normalizedTag = dogTag?.trim()?.takeIf { it.isNotEmpty() }
+        viewModelScope.launch {
+            translationRepository.updateDogTag(log.id, normalizedTag)
+            recordedBarks.value
+                .filter { kotlin.math.abs(it.timestamp - log.timestamp) <= 2000L }
+                .forEach { matchingBark ->
+                    recordedBarkRepository.updateDogTag(matchingBark.id, normalizedTag)
+                }
+        }
+    }
+
+    fun updateRecordedBarkDogTag(bark: com.example.data.RecordedBark, dogTag: String?) {
+        val normalizedTag = dogTag?.trim()?.takeIf { it.isNotEmpty() }
+        viewModelScope.launch {
+            recordedBarkRepository.updateDogTag(bark.id, normalizedTag)
+            translationLogs.value
+                .filter { kotlin.math.abs(it.timestamp - bark.timestamp) <= 2000L }
+                .forEach { matchingLog ->
+                    translationRepository.updateDogTag(matchingLog.id, normalizedTag)
+                }
+        }
+    }
+
+    fun updateLatestTranslationDogTag(dogTag: String?) {
+        val targetId = _lastTranslatedLogId.value
+        val targetLog = if (targetId != null) {
+            translationLogs.value.find { it.id == targetId }
+        } else {
+            translationLogs.value.firstOrNull()
+        }
+        if (targetLog != null) {
+            updateLogDogTag(targetLog, dogTag)
+        }
+    }
+
     fun clearAllLogs() {
         viewModelScope.launch {
             translationRepository.clearHistory()
@@ -353,12 +472,24 @@ class BarkTalkViewModel(application: Application) : AndroidViewModel(application
             petProfileRepository.insertAndSelectProfile(profile)
             com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(getApplication())
         }
+        EasterEggEngine.detectSecretDogLegend(profile.name, profile.breed)?.let { legend ->
+            triggerEasterEgg(
+                egg = BarkEasterEgg.LEGENDARY_DOG_NAME,
+                customMessage = "${legend.emoji} ${legend.title}\n${legend.quip}"
+            )
+        }
     }
 
     fun updatePetProfile(profile: PetProfile) {
         viewModelScope.launch {
             petProfileRepository.updateProfile(profile)
             com.example.widget.BarkTalkWidgetProvider.updateAllWidgets(getApplication())
+        }
+        EasterEggEngine.detectSecretDogLegend(profile.name, profile.breed)?.let { legend ->
+            triggerEasterEgg(
+                egg = BarkEasterEgg.LEGENDARY_DOG_NAME,
+                customMessage = "${legend.emoji} ${legend.title}\n${legend.quip}"
+            )
         }
     }
 

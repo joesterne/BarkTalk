@@ -152,7 +152,8 @@ fun FavoritesScreenContent(
                         log.dogThought.contains(searchQuery, ignoreCase = true) ||
                         log.petName.contains(searchQuery, ignoreCase = true) ||
                         log.vocalizationType.contains(searchQuery, ignoreCase = true) ||
-                        log.detectedEmotion.contains(searchQuery, ignoreCase = true)
+                        log.detectedEmotion.contains(searchQuery, ignoreCase = true) ||
+                        (log.dogTag?.contains(searchQuery, ignoreCase = true) == true)
                 }
             }
     }
@@ -555,6 +556,23 @@ fun FavoriteTranslationCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            // Optional User-Assigned Dog Tag Pill
+            log.dogTag?.takeIf { it.isNotBlank() }?.let { tag ->
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
+                    modifier = Modifier.testTag("favorite_dog_tag_${log.id}")
+                ) {
+                    Text(
+                        text = "🏷️ #$tag",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
             }
 
             // Acoustic Telemetry & Action Buttons Row

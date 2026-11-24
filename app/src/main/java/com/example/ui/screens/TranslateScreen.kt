@@ -95,6 +95,8 @@ import com.example.audio.CanineSoundboardPlayer
 import com.example.data.TranslationLog
 import com.example.ui.BarkTalkViewModel
 import com.example.ui.components.DailyBarkGoalCard
+import com.example.ui.components.DogTagBadge
+import com.example.ui.components.DogTagEditorDialog
 import com.example.ui.components.DogSoundboardGridCard
 import com.example.ui.components.LatestBarkQuickShareCard
 import com.example.ui.components.ShareTranslationDialog
@@ -132,6 +134,8 @@ fun TranslateScreen(
     val lastPlayedSound by viewModel.lastPlayedSound.collectAsStateWithLifecycle()
     val translationLogs by viewModel.translationLogs.collectAsStateWithLifecycle()
     val recordedBarks by viewModel.recordedBarks.collectAsStateWithLifecycle()
+    val assignedDogTags by viewModel.assignedDogTags.collectAsStateWithLifecycle()
+    val lastTranslatedLogId by viewModel.lastTranslatedLogId.collectAsStateWithLifecycle()
     val dailyBarkGoal by viewModel.dailyBarkGoal.collectAsStateWithLifecycle()
 
     val weeklyBuckets = remember(translationLogs, recordedBarks) {
@@ -145,10 +149,19 @@ fun TranslateScreen(
         weeklyBuckets.lastOrNull()?.totalCount ?: 0
     }
 
-    val latestBarkLog = remember(translationState, translationLogs, recordedBarks, selectedPet) {
+    val latestSavedRoomLog = remember(lastTranslatedLogId, translationLogs) {
+        if (lastTranslatedLogId != null) {
+            translationLogs.find { it.id == lastTranslatedLogId }
+        } else {
+            translationLogs.firstOrNull()
+        }
+    }
+
+    val latestBarkLog = remember(translationState, translationLogs, recordedBarks, selectedPet, latestSavedRoomLog) {
         val state = translationState
         if (state is TranslationState.Success) {
             TranslationLog(
+                id = latestSavedRoomLog?.id ?: 0L,
                 petId = selectedPet?.id ?: 1L,
                 petName = selectedPet?.name ?: "Barnaby",
                 petBreed = selectedPet?.breed ?: "Golden Retriever",
@@ -162,7 +175,9 @@ fun TranslateScreen(
                 urgencyLevel = state.result.urgencyLevel,
                 confidencePercent = state.result.confidencePercent,
                 recommendedAction = state.result.recommendedAction,
-                canineSubtext = state.result.canineSubtext
+                canineSubtext = state.result.canineSubtext,
+                isFavorite = latestSavedRoomLog?.isFavorite ?: false,
+                dogTag = latestSavedRoomLog?.dogTag
             )
         } else {
             translationLogs.firstOrNull() ?: recordedBarks.firstOrNull()?.toTranslationLog()
@@ -171,6 +186,8 @@ fun TranslateScreen(
 
     var captureMode by remember { mutableStateOf("MediaRecorder") } // "MediaRecorder" or "ContinuousRadar"
     var shareDialogLog by remember { mutableStateOf<TranslationLog?>(null) }
+    var showLatestTagDialog by remember { mutableStateOf(false) }
+    var heroAvatarSecretTaps by remember { mutableStateOf(0) }
 
     // Permission launcher for microphone (continuous radar)
     val micPermissionLauncher = rememberLauncherForActivityResult(
@@ -240,7 +257,19 @@ fun TranslateScreen(
                             Surface(
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(52.dp)
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        val nextTaps = heroAvatarSecretTaps + 1
+                                        if (nextTaps >= 5) {
+                                            heroAvatarSecretTaps = 0
+                                            viewModel.onSquirrelDefconTriggered(selectedPet?.name ?: "Barnaby")
+                                        } else {
+                                            heroAvatarSecretTaps = nextTaps
+                                        }
+                                    }
+                                    .testTag("hero_pet_avatar_secret_trigger")
                             ) {
                                 if (!selectedPet?.photoUri.isNullOrBlank()) {
                                     AsyncImage(
@@ -252,7 +281,7 @@ fun TranslateScreen(
                                 } else {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
-                                            text = selectedPet?.avatarEmoji ?: "🐶",
+                                            text = if (heroAvatarSecretTaps >= 3) "🐿️" else (selectedPet?.avatarEmoji ?: "🐶"),
                                             fontSize = 28.sp
                                         )
                                     }
@@ -810,6 +839,24 @@ fun TranslateScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                             )
 
+                            // Optional User-Assigned Dog Tag persisted in Room
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Optional Dog Tag:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                DogTagBadge(
+                                    dogTag = latestSavedRoomLog?.dogTag,
+                                    onClick = { showLatestTagDialog = true },
+                                    testTagName = "latest_translation_dog_tag_badge"
+                                )
+                            }
+
                             // Replay recorded dog bark audio if captured via MediaRecorder
                             val recordedSample = lastRecordedSample
                             if (recordedSample != null && recordedSample.audioFile.exists()) {
@@ -1187,6 +1234,22 @@ fun TranslateScreen(
                 }
             }
         }
+    }
+
+    if (showLatestTagDialog) {
+        val currentPreview = latestBarkLog?.englishTranslation
+            ?: (translationState as? TranslationState.Success)?.result?.englishTranslation
+            ?: ""
+        DogTagEditorDialog(
+            initialTag = latestSavedRoomLog?.dogTag,
+            translatedTextPreview = currentPreview,
+            suggestedTags = assignedDogTags,
+            onSaveTag = { updatedTag ->
+                viewModel.updateLatestTranslationDogTag(updatedTag)
+                showLatestTagDialog = false
+            },
+            onDismiss = { showLatestTagDialog = false }
+        )
     }
 
     shareDialogLog?.let { logToShare ->

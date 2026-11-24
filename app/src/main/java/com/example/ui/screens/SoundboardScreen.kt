@@ -54,6 +54,7 @@ fun SoundboardScreen(
             currentlyPlayingId = currentlyPlayingId,
             onPlaySound = { item -> viewModel.playSoundboard(item) },
             onStopSound = { viewModel.stopSoundboard() },
+            onSecretOperaTriggered = { viewModel.onSoundboardOperaTriggered() },
             modifier = Modifier.fillMaxWidth()
         )
     }

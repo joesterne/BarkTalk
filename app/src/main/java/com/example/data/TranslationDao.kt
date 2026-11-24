@@ -54,10 +54,28 @@ interface TranslationDao {
     fun getLatestLog(): Flow<TranslationLog?>
 
     /**
-     * Searches translation history by keywords in the translated text or dog thought.
+     * Searches translation history by keywords in the translated text, dog thought, or optional dog tag.
      */
-    @Query("SELECT * FROM translation_logs WHERE englishTranslation LIKE '%' || :query || '%' OR dogThought LIKE '%' || :query || '%' ORDER BY timestamp DESC")
+    @Query("SELECT * FROM translation_logs WHERE englishTranslation LIKE '%' || :query || '%' OR dogThought LIKE '%' || :query || '%' OR dogTag LIKE '%' || :query || '%' ORDER BY timestamp DESC")
     fun searchTranslations(query: String): Flow<List<TranslationLog>>
+
+    /**
+     * Retrieves translation logs matching a specific user-assigned dog tag.
+     */
+    @Query("SELECT * FROM translation_logs WHERE dogTag = :dogTag ORDER BY timestamp DESC")
+    fun getLogsByDogTag(dogTag: String): Flow<List<TranslationLog>>
+
+    /**
+     * Retrieves all translation logs that have an assigned dog tag.
+     */
+    @Query("SELECT * FROM translation_logs WHERE dogTag IS NOT NULL AND TRIM(dogTag) != '' ORDER BY timestamp DESC")
+    fun getTaggedLogs(): Flow<List<TranslationLog>>
+
+    /**
+     * Retrieves all distinct non-empty user-assigned dog tags sorted alphabetically.
+     */
+    @Query("SELECT DISTINCT dogTag FROM translation_logs WHERE dogTag IS NOT NULL AND TRIM(dogTag) != '' ORDER BY dogTag ASC")
+    fun getAllDogTags(): Flow<List<String>>
 
     /**
      * Filters communication history by detected canine emotion (e.g. Happy, Alert, Playful).
@@ -94,6 +112,12 @@ interface TranslationDao {
      */
     @Update
     suspend fun updateLog(log: TranslationLog)
+
+    /**
+     * Assigns, updates, or clears (null) the optional user-assigned dog tag for a translation log.
+     */
+    @Query("UPDATE translation_logs SET dogTag = :dogTag WHERE id = :id")
+    suspend fun updateDogTag(id: Long, dogTag: String?)
 
     /**
      * Deletes a specific translation record.

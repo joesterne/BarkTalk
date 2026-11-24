@@ -46,10 +46,16 @@ interface RecordedBarkDao {
     suspend fun getRecordedBarkById(id: Long): RecordedBark?
 
     /**
-     * Searches recorded dog barks by AI-generated translation text or vocalization type.
+     * Searches recorded dog barks by AI-generated translation text, vocalization type, or optional dog tag.
      */
-    @Query("SELECT * FROM recorded_barks WHERE translation LIKE '%' || :query || '%' OR vocalizationType LIKE '%' || :query || '%' ORDER BY timestamp DESC")
+    @Query("SELECT * FROM recorded_barks WHERE translation LIKE '%' || :query || '%' OR vocalizationType LIKE '%' || :query || '%' OR dogTag LIKE '%' || :query || '%' ORDER BY timestamp DESC")
     fun searchRecordedBarks(query: String): Flow<List<RecordedBark>>
+
+    /**
+     * Retrieves recorded dog barks matching a specific user-assigned dog tag.
+     */
+    @Query("SELECT * FROM recorded_barks WHERE dogTag = :dogTag ORDER BY timestamp DESC")
+    fun getRecordedBarksByDogTag(dogTag: String): Flow<List<RecordedBark>>
 
     /**
      * Returns the total count of stored recorded dog barks.
@@ -85,6 +91,12 @@ interface RecordedBarkDao {
         emotion: String = "Alert",
         dogThought: String = ""
     )
+
+    /**
+     * Assigns, updates, or clears (null) the optional user-assigned dog tag for a recorded dog bark.
+     */
+    @Query("UPDATE recorded_barks SET dogTag = :dogTag WHERE id = :id")
+    suspend fun updateDogTag(id: Long, dogTag: String?)
 
     /**
      * Toggles or sets the favorite status of a recorded dog bark.

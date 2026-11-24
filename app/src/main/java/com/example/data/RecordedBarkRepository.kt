@@ -20,6 +20,10 @@ class RecordedBarkRepository(private val recordedBarkDao: RecordedBarkDao) {
         return recordedBarkDao.getRecordedBarksForPet(petId)
     }
 
+    fun getRecordedBarksByDogTag(dogTag: String): Flow<List<RecordedBark>> {
+        return recordedBarkDao.getRecordedBarksByDogTag(dogTag)
+    }
+
     fun searchRecordedBarks(query: String): Flow<List<RecordedBark>> {
         return recordedBarkDao.searchRecordedBarks(query)
     }
@@ -29,15 +33,25 @@ class RecordedBarkRepository(private val recordedBarkDao: RecordedBarkDao) {
     }
 
     suspend fun insertRecordedBark(bark: RecordedBark): Long {
-        return recordedBarkDao.insertRecordedBark(bark)
+        val normalizedTag = bark.dogTag?.trim()?.takeIf { it.isNotEmpty() }
+        return recordedBarkDao.insertRecordedBark(bark.copy(dogTag = normalizedTag))
     }
 
     suspend fun insertRecordedBarks(barks: List<RecordedBark>): List<Long> {
-        return recordedBarkDao.insertRecordedBarks(barks)
+        val normalized = barks.map { bark ->
+            bark.copy(dogTag = bark.dogTag?.trim()?.takeIf { it.isNotEmpty() })
+        }
+        return recordedBarkDao.insertRecordedBarks(normalized)
     }
 
     suspend fun updateRecordedBark(bark: RecordedBark) {
-        recordedBarkDao.updateRecordedBark(bark)
+        val normalizedTag = bark.dogTag?.trim()?.takeIf { it.isNotEmpty() }
+        recordedBarkDao.updateRecordedBark(bark.copy(dogTag = normalizedTag))
+    }
+
+    suspend fun updateDogTag(id: Long, dogTag: String?) {
+        val normalizedTag = dogTag?.trim()?.takeIf { it.isNotEmpty() }
+        recordedBarkDao.updateDogTag(id, normalizedTag)
     }
 
     suspend fun updateAiTranslation(

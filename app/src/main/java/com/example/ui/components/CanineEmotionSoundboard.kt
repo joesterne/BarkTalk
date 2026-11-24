@@ -85,9 +85,11 @@ fun CanineEmotionSoundboard(
     currentlyPlayingId: String?,
     onPlaySound: (SoundboardItem) -> Unit,
     onStopSound: () -> Unit,
+    onSecretOperaTriggered: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var selectedEmotion by remember { mutableStateOf("All") }
+    var secretSpeakerTaps by remember { mutableStateOf(0) }
 
     val emotions = listOf(
         EmotionFilter("All", "🌟", null),
@@ -136,15 +138,31 @@ fun CanineEmotionSoundboard(
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    val next = secretSpeakerTaps + 1
+                                    if (next >= 5) {
+                                        secretSpeakerTaps = 0
+                                        onSecretOperaTriggered()
+                                    } else {
+                                        secretSpeakerTaps = next
+                                    }
+                                }
+                                .testTag("soundboard_secret_opera_trigger")
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.VolumeUp,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                if (secretSpeakerTaps >= 3) {
+                                    Text("🐺", fontSize = 18.sp)
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.VolumeUp,
+                                        contentDescription = "Synthesizer Speaker",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
                         }
                         Column {

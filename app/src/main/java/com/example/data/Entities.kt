@@ -25,10 +25,10 @@ data class PetProfile(
 )
 
 /**
- * Room Database Entity to store past canine translations.
- * Stores the timestamp, original audio intensity (dB), translated English text,
- * dominant acoustic pitch, detected emotion, inner dog thought, and optional audio recording path
- * so users can view and review their dog's communication history.
+ * Room Database Entity to store past canine bark translation logs.
+ * Stores the translated English text, timestamp, optional user-assigned dog tag,
+ * acoustic telemetry (pitch, dB, cadence), detected emotion, inner dog thought,
+ * and optional audio recording path in the local Room database.
  */
 @Entity(tableName = "translation_logs")
 data class TranslationLog(
@@ -50,8 +50,15 @@ data class TranslationLog(
     val recommendedAction: String = "",
     val canineSubtext: String = "",
     val isFavorite: Boolean = false,
-    val audioFilePath: String? = null
-)
+    val audioFilePath: String? = null,
+    val dogTag: String? = null // Optional user-assigned dog tag (e.g. "Squirrel Patrol", "Treat Time")
+) {
+    /**
+     * Convenience accessor for the translated bark text stored in Room.
+     */
+    val translatedText: String
+        get() = englishTranslation
+}
 
 /**
  * Semantic type alias for TranslationLog representing a Dog Translation Room Entity.

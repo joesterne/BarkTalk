@@ -28,8 +28,22 @@ class TranslationRepository(private val translationDao: TranslationDao) {
      */
     val translationCount: Flow<Int> = translationDao.getTranslationCount()
 
+    /**
+     * Reactive stream of distinct non-empty user-assigned dog tags.
+     */
+    val allDogTags: Flow<List<String>> = translationDao.getAllDogTags()
+
+    /**
+     * Reactive stream of all translation logs that have a user-assigned dog tag.
+     */
+    val taggedTranslations: Flow<List<TranslationLog>> = translationDao.getTaggedLogs()
+
     fun getTranslationsForPet(petId: Long): Flow<List<TranslationLog>> {
         return translationDao.getLogsForPet(petId)
+    }
+
+    fun getTranslationsByDogTag(dogTag: String): Flow<List<TranslationLog>> {
+        return translationDao.getLogsByDogTag(dogTag)
     }
 
     fun searchTranslations(query: String): Flow<List<TranslationLog>> {
@@ -49,15 +63,25 @@ class TranslationRepository(private val translationDao: TranslationDao) {
     }
 
     suspend fun insertTranslation(translation: TranslationLog): Long {
-        return translationDao.insertLog(translation)
+        val normalizedTag = translation.dogTag?.trim()?.takeIf { it.isNotEmpty() }
+        return translationDao.insertLog(translation.copy(dogTag = normalizedTag))
     }
 
     suspend fun insertTranslations(translations: List<TranslationLog>): List<Long> {
-        return translationDao.insertTranslations(translations)
+        val normalized = translations.map { log ->
+            log.copy(dogTag = log.dogTag?.trim()?.takeIf { it.isNotEmpty() })
+        }
+        return translationDao.insertTranslations(normalized)
     }
 
     suspend fun updateTranslation(translation: TranslationLog) {
-        translationDao.updateLog(translation)
+        val normalizedTag = translation.dogTag?.trim()?.takeIf { it.isNotEmpty() }
+        translationDao.updateLog(translation.copy(dogTag = normalizedTag))
+    }
+
+    suspend fun updateDogTag(id: Long, dogTag: String?) {
+        val normalizedTag = dogTag?.trim()?.takeIf { it.isNotEmpty() }
+        translationDao.updateDogTag(id, normalizedTag)
     }
 
     suspend fun deleteTranslation(translation: TranslationLog) {
